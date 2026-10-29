@@ -273,7 +273,7 @@ function renderItem(it) {
     notes.push(h("div", { class: "note" }, "음성인식이 ", h("b", {}, `“${it.check.normal.heard}”`), "로 받아적었어요 (같은 소리)."));
   }
   if (st === "warn") {
-    const bad = SPEEDS.map(([k]) => k).filter(k => !it.check[k].ok);
+    const bad = ["normal", "slow", "very_slow"].filter(k => !it.check[k].ok);
     notes.push(h("div", { class: "note" }, bad.map(k => `${SPEED_KO[k]}: “${it.check[k].heard || "알아듣지 못함"}”`).join(" · "), " (으)로 들렸어요."));
     notes.push(h("div", { class: "chips" },
       h("button", { class: "btn small ghost", type: "button", onclick: () => { it.override = true; renderItem(it); updateSummary(); } }, "들어 보니 괜찮아요"),
@@ -294,7 +294,7 @@ function updateSummary() {
   const n = items.length, ok = items.filter(it => state(it) === "ok").length, warn = items.filter(it => state(it) === "warn").length;
   const pend = n - ok - warn;
   $("sum").replaceChildren("단어 ", h("b", {}, n), "개 · 확인됨 ", h("b", {}, ok),
-    warn ? [" · 살펴볼 단어 ", h("b", {}, warn)] : "", pend ? [" · 만드는 중 ", h("b", {}, pend)] : "");
+    ...(warn ? [" · 살펴볼 단어 ", h("b", {}, warn)] : []), ...(pend ? [" · 만드는 중 ", h("b", {}, pend)] : []));
 }
 
 // ---------- 소리 ----------
