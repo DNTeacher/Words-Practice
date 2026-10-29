@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=3";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=3";
-import { displayIpa } from "./g2p.js?v=3";
-import * as A from "./audio.js?v=3";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=4";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=4";
+import { displayIpa } from "./g2p.js?v=4";
+import * as A from "./audio.js?v=4";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,7 +45,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=3");
+    await engine.loadDict("app/dict-us.json?v=4");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -175,12 +175,12 @@ async function makeAll() {
     if (none.length) { showErr(`발음을 만들 수 없는 단어가 있어요: ${none.map(it => it.word).join(", ")}. 철자를 확인해 주세요.`); return; }
     $("resultCard").hidden = false; $("dock").hidden = false;
     renderList(); updateSummary();
-    const n = items.length, verifySteps = n * 3;
+    const n = items.length, verifySteps = n * SPEEDS.length;
     let step = 0;
     const tick = (label) => { step++; setProg(label, step / (n + verifySteps)); };
     for (const it of items) { await engine.makeAudio(it); renderItem(it); tick(`음성 만드는 중 ${items.indexOf(it) + 1}/${n}`); }
-    for (const [key] of [["normal"], ["slow"], ["very_slow"]]) {
-      await engine.verify(items, key, () => tick(`음성인식으로 확인 중 (${SPEED_KO[key]})`));
+    for (const [key] of SPEEDS.slice().reverse()) {
+      await engine.verify(items, key, () => tick(SPEEDS.length > 1 ? `음성인식으로 확인 중 (${SPEED_KO[key]})` : "음성인식으로 확인 중"));
       items.forEach(renderItem);
     }
     step = n + verifySteps; setProg("", 1);
@@ -273,16 +273,17 @@ function renderItem(it) {
     notes.push(h("div", { class: "note" }, "음성인식이 ", h("b", {}, `“${it.check.normal.heard}”`), "로 받아적었어요 (같은 소리)."));
   }
   if (st === "warn") {
-    const bad = ["normal", "slow", "very_slow"].filter(k => !it.check[k].ok);
-    notes.push(h("div", { class: "note" }, bad.map(k => `${SPEED_KO[k]}: “${it.check[k].heard || "알아듣지 못함"}”`).join(" · "), " (으)로 들렸어요."));
+    const bad = SPEEDS.map(([k]) => k).reverse().filter(k => !it.check[k].ok);
+    const heardTxt = k => it.check[k].heard ? `“${it.check[k].heard}”(으)로 들었어요` : "알아듣지 못했어요";
+    notes.push(h("div", { class: "note" }, "음성인식이 ", bad.map(k => (SPEEDS.length > 1 ? SPEED_KO[k] + ": " : "") + heardTxt(k)).join(" · "), "."));
     notes.push(h("div", { class: "chips" },
       h("button", { class: "btn small ghost", type: "button", onclick: () => { it.override = true; renderItem(it); updateSummary(); } }, "들어 보니 괜찮아요"),
       h("button", { class: "btn small quiet", type: "button", onclick: () => { it.baseSpeed = it.baseSpeed === 0.92 ? 1.06 : 0.92; regen(it); } }, "다시 만들기")));
   }
   pron.append(...notes);
 
-  const play = h("div", { class: "play" }, ["normal", "slow", "very_slow"].map(k =>
-    h("button", { class: "playbtn", type: "button", disabled: !it.audio, "data-k": k, "aria-label": `${it.word} ${SPEED_KO[k]} 듣기`, onclick: e => playAudio(it.audio && it.audio[k], e.currentTarget) }, `▶ ${SPEED_KO[k]}`)));
+  const play = h("div", { class: "play" }, SPEEDS.map(([k]) => k).reverse().map(k =>
+    h("button", { class: "playbtn", type: "button", disabled: !it.audio, "data-k": k, "aria-label": `${it.word} 듣기`, onclick: e => playAudio(it.audio && it.audio[k], e.currentTarget) }, SPEEDS.length > 1 ? `▶ ${SPEED_KO[k]}` : "▶ 듣기")));
 
   it.el.replaceChildren(h("div", { class: "no" }, it.no), h("div", {}, view, editbox), pron, play);
   if (busy) it.el.querySelectorAll("button:not(.playbtn)").forEach(b => b.disabled = true);
@@ -320,7 +321,7 @@ function encodeSet() {
   if (!window.lamejs) throw new Error("MP3 변환 도구를 불러오지 못했어요. 새로고침해 주세요.");
   return items.map(it => {
     if (!it.mp3) it.mp3 = Object.fromEntries(SPEEDS.map(([k]) => [k, A.toBase64(A.mp3Bytes(it.audio[k], window.lamejs))]));
-    return { w: it.word, m: it.meaning, a: { very_slow: it.mp3.very_slow, slow: it.mp3.slow, normal: it.mp3.normal } };
+    return { w: it.word, m: it.meaning, a: { ...it.mp3 } };
   });
 }
 function currentSet() {

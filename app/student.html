@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
 <style>
-/* Layout: 한 장짜리 단어장. 공책 줄처럼 단어가 한 줄씩 놓이고, 누른 단어에 형광펜이 그어진다. 빠르기 막대는 위에 고정. */
+/* Layout: 한 장짜리 단어장. 공책 줄처럼 단어가 한 줄씩 놓이고, 누른 단어에 형광펜이 그어진다. (보통 빠르기 하나만, 2026-10-29 선생님 결정) */
 :root {
   --paper: #EEF2F8;      /* 책상 위 종이 바탕 */
   --sheet: #FFFFFF;      /* 단어장 한 장 */
@@ -63,7 +63,7 @@ body::before {
 }
 
 /* 머리말 */
-header { display: grid; gap: 6px; padding-block: 8px 14px; }
+header { display: grid; gap: 6px; padding-block: 8px 18px; }
 .eyebrow { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink-soft); letter-spacing: .02em; }
 .chip { background: var(--chip); color: var(--ink); border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
 h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
@@ -79,27 +79,6 @@ h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 700; letter-spa
 }
 .playall[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .playall svg { width: 14px; height: 14px; fill: currentColor; }
-
-/* 빠르기 (고정 막대) */
-.speedbar {
-  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
-  background: var(--paper); padding-block: 8px 12px;
-}
-.speed {
-  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px;
-}
-.speed > span { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
-.seg {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px; padding: 3px; gap: 3px;
-  box-shadow: var(--shadow);
-}
-.seg button {
-  font: 500 15px/1.2 var(--f-ko); color: var(--ink-soft);
-  background: transparent; border: 0; border-radius: 9px; padding: 10px 4px; cursor: pointer;
-  white-space: nowrap;
-}
-.seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
 
 /* 단어장 */
 .sheet {
@@ -171,13 +150,12 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 }
 @media (max-width: 360px) {
   .w { font-size: 23px; }
-  .seg button { font-size: 14px; }
 }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
+  <header class="head">
     <div class="eyebrow"><span id="cls">오늘의 영어 단어</span><span class="chip" id="sampleChip" hidden>예시</span></div>
     <h1 id="title">영어 단어</h1>
     <div class="meta">
@@ -188,17 +166,6 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
       </button>
     </div>
   </header>
-
-  <div class="speedbar">
-    <div class="speed">
-      <span id="speedLabel">빠르기</span>
-      <div class="seg" role="radiogroup" aria-labelledby="speedLabel" id="speed">
-        <button type="button" role="radio" id="sp-very_slow" data-speed="very_slow" aria-checked="false">아주 천천히</button>
-        <button type="button" role="radio" id="sp-slow" data-speed="slow" aria-checked="false">천천히</button>
-        <button type="button" role="radio" id="sp-normal" data-speed="normal" aria-checked="true">보통</button>
-      </div>
-    </div>
-  </div>
 
   <ol class="sheet" id="list"></ol>
   <p class="err" id="err" hidden>소리를 재생하지 못했어요. 휴대폰 소리 크기를 확인하고 다시 눌러 주세요.</p>
@@ -251,22 +218,9 @@ const DATA = /*__WORDBOOK_DATA__*/null;
     h.hidden = false;
   }
 
-  // 빠르기: 마지막 선택을 기억 (저장이 막혀 있으면 '보통')
-  let speed = "normal";
-  try { const s = localStorage.getItem("wordbook-speed"); if (s && ["very_slow","slow","normal"].includes(s)) speed = s; } catch (e) {}
-  function setSpeed(s) {
-    speed = s;
-    document.querySelectorAll("#speed button").forEach(b => b.setAttribute("aria-checked", String(b.dataset.speed === s)));
-    try { localStorage.setItem("wordbook-speed", s); } catch (e) {}
-  }
-  document.getElementById("speed").addEventListener("click", e => {
-    const b = e.target.closest("button[data-speed]"); if (b) setSpeed(b.dataset.speed);
-  });
-  setSpeed(speed);
-
-  // 음성: 단어마다 3가지 빠르기의 mp3가 들어 있다. 처음 누를 때 재생용 주소로 바꾼다.
+  // 음성: 단어마다 보통 빠르기 mp3 가 들어 있다 (예전 단어장에는 느린 음성도 있지만 쓰지 않음). 처음 누를 때 재생용 주소로 바꾼다.
   const urls = {};
-  function urlFor(i, key) {
+  function urlFor(i, key = "normal") {
     const id = i + ":" + key;
     if (urls[id]) return urls[id];
     const b64 = DATA.words[i].a[key];
@@ -309,7 +263,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
     clearTimeout(gapTimer);
     if (current >= 0) mark(current, false);
     current = i; mark(i, true); errBox.hidden = true;
-    player.src = urlFor(i, speed);
+    player.src = urlFor(i);
     try { player.currentTime = 0; } catch (e) {}
     const p = player.play();
     if (p && p.catch) p.catch(() => { mark(i, false); errBox.hidden = false; stopQueue(); });
@@ -320,7 +274,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
     if (queue !== null) {
       const next = current + 1;
       if (next >= rows.length) { stopQueue(); return; }
-      const gap = speed === "normal" ? 900 : speed === "slow" ? 1100 : 1400;
+      const gap = 900;
       gapTimer = setTimeout(() => {
         if (queue === null) return;
         rows[next].scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
