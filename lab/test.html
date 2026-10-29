@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>발음 엔진 시험</title>
+<style>
+body { font: 15px/1.5 system-ui, sans-serif; margin: 0; padding: 20px; background: #EEF2F8; color: #15213B; }
+button { font: inherit; font-weight: 700; padding: 10px 16px; border-radius: 10px; border: 0; background: #2A55D3; color: #fff; cursor: pointer; }
+pre { background: #fff; border-radius: 10px; padding: 12px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>발음 엔진 시험</h1>
+<p>AI 음성으로 단어를 만들고, 음성인식으로 다시 받아적어 봅니다. 처음에는 모델을 내려받느라 시간이 걸려요.</p>
+<button id="go" type="button">시험 시작</button>
+<pre id="log"></pre>
+<script type="module">
+import { env, pipeline, StyleTextToSpeech2Model, Tensor } from "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/dist/transformers.min.js";
+
+const logEl = document.getElementById("log");
+const T0 = performance.now();
+function log(s) { const t = ((performance.now() - T0) / 1000).toFixed(1); logEl.textContent += `[${t}s] ${s}\n`; console.log("[lab]", s); }
+window.LAB = { done: false, results: [], error: null };
+
+const KOKORO = "onnx-community/Kokoro-82M-v1.0-ONNX";
+const VOCAB = {";":1,":":2,",":3,".":4,"!":5,"?":6,"—":9,"…":10,"\"":11,"(":12,")":13,"“":14,"”":15," ":16,"̃":17,"ʣ":18,"ʥ":19,"ʦ":20,"ʨ":21,"ᵝ":22,"ꭧ":23,"A":24,"I":25,"O":31,"Q":33,"S":35,"T":36,"W":39,"Y":41,"ᵊ":42,"a":43,"b":44,"c":45,"d":46,"e":47,"f":48,"h":50,"i":51,"j":52,"k":53,"l":54,"m":55,"n":56,"o":57,"p":58,"q":59,"r":60,"s":61,"t":62,"u":63,"v":64,"w":65,"x":66,"y":67,"z":68,"ɑ":69,"ɐ":70,"ɒ":71,"æ":72,"β":75,"ɔ":76,"ɕ":77,"ç":78,"ɖ":80,"ð":81,"ʤ":82,"ə":83,"ɚ":85,"ɛ":86,"ɜ":87,"ɟ":90,"ɡ":92,"ɥ":99,"ɨ":101,"ɪ":102,"ʝ":103,"ɯ":110,"ɰ":111,"ŋ":112,"ɳ":113,"ɲ":114,"ɴ":115,"ø":116,"ɸ":118,"θ":119,"œ":120,"ɹ":123,"ɾ":125,"ɻ":126,"ʁ":128,"ɽ":129,"ʂ":130,"ʃ":131,"ʈ":132,"ʧ":133,"ʊ":135,"ʋ":136,"ʌ":138,"ɣ":139,"ɤ":140,"χ":142,"ʎ":143,"ʒ":147,"ʔ":148,"ˈ":156,"ˌ":157,"ː":158,"ʰ":162,"ʲ":164,"↓":169,"→":171,"↗":172,"↘":173,"ᵻ":177};
+
+const WORDS = [["Wednesday", "wˈɛnzdˌA"], ["read (과거)", "ɹˈɛd"], ["knife", "nˈIf"], ["comfortable", "kˈʌmfəɹɾəbᵊl"]];
+
+async function resample(audio, from, to) {
+  const ctx = new OfflineAudioContext(1, Math.ceil(audio.length * to / from), to);
+  const buf = ctx.createBuffer(1, audio.length, from); buf.copyToChannel(audio, 0);
+  const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); src.start();
+  return (await ctx.startRendering()).getChannelData(0);
+}
+
+document.getElementById("go").addEventListener("click", run);
+window.LAB.run = run;
+
+async function run() {
+  try {
+    const hasGPU = !!navigator.gpu && !!(await navigator.gpu.requestAdapter().catch(() => null));
+    log(`CPU 코어 ${navigator.hardwareConcurrency}, WebGPU ${hasGPU ? "있음" : "없음"}`);
+    const device = hasGPU ? "webgpu" : "wasm";
+
+    log(`음성 모델 불러오는 중 (fp32, ${device})…`);
+    const model = await StyleTextToSpeech2Model.from_pretrained(KOKORO, { dtype: "fp32", device });
+    const vbuf = await (await fetch(`https://huggingface.co/${KOKORO}/resolve/main/voices/af_heart.bin`)).arrayBuffer();
+    const voice = new Float32Array(vbuf);
+    log(`음성 모델 준비 완료 (목소리 데이터 ${voice.length / 256}줄)`);
+
+    log("음성인식 모델 불러오는 중 (whisper-base.en)…");
+    const asr = await pipeline("automatic-speech-recognition", "onnx-community/whisper-base.en", { dtype: "q8", device: "wasm" });
+    log("음성인식 모델 준비 완료");
+
+    for (const [label, ps] of WORDS) {
+      const ids = [0, ...[...ps].map(c => VOCAB[c]).filter(v => v !== undefined), 0];
+      const n = ids.length - 2;
+      const t1 = performance.now();
+      const out = await model({
+        input_ids: new Tensor("int64", BigInt64Array.from(ids.map(BigInt)), [1, ids.length]),
+        style: new Tensor("float32", voice.slice((n - 1) * 256, n * 256), [1, 256]),
+        speed: new Tensor("float32", [1], [1]),
+      });
+      const wav = out.waveform.data;
+      const t2 = performance.now();
+      const a16 = await resample(wav, 24000, 16000);
+      const r = await asr(a16);
+      const t3 = performance.now();
+      const row = { label, seconds: +(wav.length / 24000).toFixed(2), tts_ms: Math.round(t2 - t1), asr_ms: Math.round(t3 - t2), heard: r.text.trim() };
+      window.LAB.results.push(row);
+      log(`${label}: 소리 ${row.seconds}초, 생성 ${row.tts_ms}ms, 인식 ${row.asr_ms}ms → "${row.heard}"`);
+    }
+    log("완료");
+  } catch (e) {
+    window.LAB.error = String(e && e.stack || e);
+    log("오류: " + e);
+  } finally {
+    window.LAB.done = true;
+  }
+}
+</script>
+</body>
+</html>
