@@ -1,0 +1,235 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>단어장 만들기</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/lamejs@1.2.1/lame.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<style>
+/* Layout: 선생님 작업대. 위에서 아래로 반·날짜 → 단어 붙여넣기 → 단어별 확인표, 아래에 고정된 올리기 막대. 학생 페이지와 같은 종이·남색 잉크·형광펜. */
+:root {
+  --paper: #EEF2F8; --sheet: #FFFFFF; --ink: #15213B; --ink-soft: #56637F; --rule: #DDE4EF;
+  --accent: #2A55D3; --accent-ink: #FFFFFF; --marker: #FFE14D; --chip: #FFF4C2;
+  --ok: #1F7A4D; --ok-bg: #E3F4EA; --warn: #9A5B00; --warn-bg: #FFF1D6; --bad: #B3261E; --bad-bg: #FCE8E6;
+  --shadow: 0 1px 0 rgba(21,33,59,.04), 0 8px 24px -12px rgba(21,33,59,.18);
+  --f-word: "Andika", system-ui, sans-serif;
+  --f-ko: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #9CA8C2; --rule: #263049;
+    --accent: #8EAEFF; --accent-ink: #0E1422; --marker: rgba(255,214,64,.34); --chip: #3A3418;
+    --ok: #7BD3A3; --ok-bg: #173527; --warn: #F2C26B; --warn-bg: #3A2E14; --bad: #FF9C94; --bad-bg: #3D1C1A;
+    --shadow: 0 8px 24px -12px rgba(0,0,0,.6); color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 var(--f-ko); }
+button, input, select, textarea { font: inherit; color: inherit; }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 20px 120px; }
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 20px 12px; }
+header.top h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+header.top .sub { margin: 2px 0 0; color: var(--ink-soft); font-size: 14px; }
+.tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; background: var(--sheet); box-shadow: var(--shadow); white-space: nowrap; }
+.pill .bar { width: 80px; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; }
+.pill .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .3s; }
+.pill.ready { color: var(--ok); }
+.pill.err { color: var(--bad); }
+.btn { border: 0; border-radius: 10px; padding: 10px 16px; font-weight: 700; cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn.ghost { background: transparent; color: var(--accent); box-shadow: inset 0 0 0 1.5px var(--accent); }
+.btn.small { padding: 6px 10px; font-size: 13px; border-radius: 8px; }
+.btn.quiet { background: transparent; color: var(--ink-soft); padding: 6px 8px; font-weight: 500; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--chip); border-radius: 12px; padding: 12px 16px; margin-bottom: 14px; }
+.banner p { margin: 0; }
+
+.card { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px; }
+.card h2 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: baseline; gap: 8px; }
+.card h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; }
+.card h2 .hint { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+.row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(200px, 2fr); gap: 12px; }
+@media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
+label.f { display: grid; gap: 4px; font-size: 13px; font-weight: 500; color: var(--ink-soft); }
+label.f input, label.f select { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 9px 12px; font-size: 15px; color: var(--ink); }
+.loadprev { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); }
+.loadprev select { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 5px 8px; font-size: 13px; }
+textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 12px 14px; font: 16px/1.6 var(--f-ko); }
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
+.errs { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 14px; }
+.errs:empty { display: none; }
+
+.progress { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--ink-soft); margin-bottom: 10px; }
+.progress .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--rule); overflow: hidden; max-width: 280px; }
+.progress .bar i { display: block; height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.item { display: grid; grid-template-columns: 34px minmax(0, 1.2fr) minmax(0, 1.6fr) auto; gap: 14px; align-items: start; padding: 14px 0; border-top: 1px solid var(--rule); }
+.item:first-child { border-top: 0; }
+@media (max-width: 760px) { .item { grid-template-columns: 30px minmax(0, 1fr); } .item .play, .item .pron { grid-column: 2; } }
+.item .no { color: var(--ink-soft); font-variant-numeric: tabular-nums; padding-top: 4px; text-align: right; }
+.item .w { font: 700 22px/1.2 var(--f-word); overflow-wrap: anywhere; }
+.item .m { color: var(--ink-soft); font-size: 14px; overflow-wrap: anywhere; }
+.item .edit { margin-top: 2px; }
+.item.editing .view { display: none; }
+.item .editbox { display: none; gap: 6px; }
+.item.editing .editbox { display: grid; }
+.item .editbox input { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 6px 8px; width: 100%; }
+.pron .ipa { font-family: "Andika", "Lucida Sans Unicode", "Segoe UI", sans-serif; color: var(--ink-soft); font-size: 15px; }
+.choices { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0; }
+.choice { display: inline-flex; align-items: center; gap: 4px; border-radius: 10px; border: 1.5px solid var(--rule); background: var(--paper); padding: 4px 6px 4px 10px; font-size: 13px; cursor: pointer; }
+.choice[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--sheet)); font-weight: 700; }
+.choice .sel { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; color: inherit; }
+.choice .pv { border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 2px 4px; font-size: 13px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 700; }
+.chip.ok { background: var(--ok-bg); color: var(--ok); }
+.chip.warn { background: var(--warn-bg); color: var(--warn); }
+.chip.bad { background: var(--bad-bg); color: var(--bad); }
+.chip.info { background: var(--chip); color: var(--ink); }
+.chip.wait { background: var(--rule); color: var(--ink-soft); font-weight: 500; }
+.note { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+.note b { color: var(--ink); }
+.play { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.play button { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
+.play button:disabled { opacity: .4; cursor: default; }
+.play button.on { background: var(--marker); border-color: transparent; color: #15213B; }
+.empty { color: var(--ink-soft); padding: 8px 0; }
+
+.dock { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--sheet) 94%, transparent); backdrop-filter: blur(6px); box-shadow: 0 -8px 24px -16px rgba(21,33,59,.35); }
+.dock .in { max-width: 980px; margin: 0 auto; padding: 12px 20px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.dock .sum { font-size: 14px; color: var(--ink-soft); }
+.dock .sum b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.dock .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.confirm { display: flex; gap: 8px; align-items: center; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
+.done { border-left: 4px solid var(--ok); }
+.done p { margin: 0 0 8px; }
+.copyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+.copyrow code { background: var(--paper); border-radius: 8px; padding: 6px 10px; font-size: 13px; user-select: all; overflow-wrap: anywhere; }
+
+dialog { border: 0; border-radius: 18px; padding: 0; width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); background: var(--sheet); color: var(--ink); box-shadow: 0 30px 60px -20px rgba(0,0,0,.4); }
+dialog::backdrop { background: rgba(14,20,34,.45); }
+dialog .dh { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--rule); position: sticky; top: 0; background: var(--sheet); }
+dialog .dh h2 { margin: 0; font-size: 18px; }
+dialog .db { padding: 6px 20px 20px; overflow: auto; }
+dialog section { padding-block: 14px; border-bottom: 1px solid var(--rule); }
+dialog section:last-child { border-bottom: 0; }
+dialog h3 { margin: 0 0 8px; font-size: 15px; }
+dialog ol.steps { margin: 6px 0 10px; padding-left: 20px; font-size: 14px; }
+dialog ol.steps li { margin: 3px 0; }
+dialog .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+dialog .inline input { flex: 1 1 220px; border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 9px 12px; }
+.status { font-size: 14px; margin-top: 8px; }
+.status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+.classes { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.classes li { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.classes li code { color: var(--ink-soft); font-size: 12.5px; overflow-wrap: anywhere; }
+a { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>단어장 만들기</h1>
+      <p class="sub">단어를 붙여넣으면 AI가 발음을 만들고, 음성인식으로 한 번 더 확인해요.</p>
+    </div>
+    <div class="tools">
+      <span class="pill" id="engine" role="status"><span id="engineText">AI 준비 중</span><span class="bar"><i id="engineBar"></i></span></span>
+      <button class="btn ghost small" id="openSettings" type="button">설정</button>
+    </div>
+  </header>
+
+  <div class="banner" id="tokenBanner" hidden>
+    <p><b>처음 한 번만:</b> 학생 주소에 올리려면 GitHub 열쇠(토큰)를 넣어야 해요. 그 전에도 발음 만들기와 미리 듣기는 할 수 있어요.</p>
+    <button class="btn small" id="bannerSettings" type="button">열쇠 넣기</button>
+  </div>
+
+  <section class="card" aria-labelledby="s1">
+    <h2 id="s1"><span class="n">1</span> 반과 날짜</h2>
+    <div class="row">
+      <label class="f">반<select id="cls"></select></label>
+      <label class="f">날짜<input id="date" type="date"></label>
+      <label class="f">제목<input id="title" type="text" placeholder="10월 30일 영어 단어"></label>
+    </div>
+    <div class="loadprev" id="prevBox" hidden>
+      <span>지난 단어장 고치기:</span>
+      <select id="prevSel" aria-label="불러올 지난 단어장"></select>
+      <button class="btn ghost small" id="prevLoad" type="button">불러오기</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s2">
+    <h2 id="s2"><span class="n">2</span> 단어와 뜻 <span class="hint">한 줄에 하나씩 · 엑셀에서 두 칸을 복사해 붙여넣어도 돼요</span></h2>
+    <textarea id="words" spellcheck="false" placeholder="apple 사과&#10;read 읽었다&#10;live 살아 있는&#10;ice cream 아이스크림"></textarea>
+    <div class="errs" id="errs" role="alert"></div>
+    <div class="actions">
+      <button class="btn" id="make" type="button" disabled>발음 만들기</button>
+      <span class="note" id="makeNote">AI가 준비되면 누를 수 있어요.</span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="s3" id="resultCard" hidden>
+    <h2 id="s3"><span class="n">3</span> 듣고 확인하기 <span class="hint">노란 표시가 있는 단어만 살펴보면 돼요</span></h2>
+    <div class="progress" id="prog" hidden><span id="progText"></span><span class="bar"><i id="progBar"></i></span></div>
+    <ol class="list" id="list"></ol>
+  </section>
+
+  <section class="card done" id="doneCard" hidden aria-live="polite"></section>
+</div>
+
+<div class="dock" id="dock" hidden>
+  <div class="in">
+    <div class="sum" id="sum"></div>
+    <div class="btns">
+      <span class="confirm" id="confirm" hidden></span>
+      <button class="btn ghost" id="preview" type="button">학생 화면 미리 보기</button>
+      <button class="btn" id="publish" type="button">올리기</button>
+    </div>
+  </div>
+</div>
+
+<dialog id="settings" aria-labelledby="setTitle">
+  <div class="dh"><h2 id="setTitle">설정</h2><button class="btn quiet" id="closeSettings" type="button">닫기</button></div>
+  <div class="db">
+    <section>
+      <h3>GitHub 열쇠 (처음 한 번)</h3>
+      <p class="note">이 노트북 브라우저에만 저장돼요. 열쇠는 Words-Practice 저장소에 파일을 올리는 데만 쓰여요.</p>
+      <ol class="steps">
+        <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">GitHub 열쇠 만들기 화면</a>을 엽니다 (dnteacher 계정으로 로그인).</li>
+        <li><b>Token name</b>: 단어장 앱 · <b>Expiration</b>: 원하는 기간 (예: 1년)</li>
+        <li><b>Repository access</b>: <b>Only select repositories</b> → <b>Words-Practice</b></li>
+        <li><b>Permissions</b> → Repository permissions → <b>Contents</b> 를 <b>Read and write</b> 로</li>
+        <li>맨 아래 <b>Generate token</b> → 나온 열쇠(github_pat_로 시작)를 복사해 아래에 붙여넣기</li>
+      </ol>
+      <div class="inline">
+        <input id="token" type="password" autocomplete="off" placeholder="github_pat_…" aria-label="GitHub 열쇠">
+        <button class="btn" id="saveToken" type="button">저장하고 확인</button>
+        <button class="btn quiet" id="clearToken" type="button">지우기</button>
+      </div>
+      <div class="status" id="tokenStatus" role="status"></div>
+    </section>
+    <section>
+      <h3>반 목록</h3>
+      <ul class="classes" id="classList"></ul>
+      <h3 style="margin-top:14px">반 추가</h3>
+      <div class="inline">
+        <input id="newName" type="text" placeholder="반 이름 (예: 중1A반)" aria-label="새 반 이름">
+        <input id="newCode" type="text" placeholder="주소 코드 (예: m1a)" aria-label="새 반 주소 코드" style="flex:0 1 160px">
+        <button class="btn" id="addClass" type="button">반 추가하고 올리기</button>
+      </div>
+      <p class="note">주소 코드는 영어 소문자와 숫자로 짧게 (초=e, 중=m + 학년 + 반). 학생 주소: dnteacher.github.io/Words-Practice/<b>코드</b>.html</p>
+      <div class="status" id="classStatus" role="status"></div>
+    </section>
+  </div>
+</dialog>
+
+<script type="module" src="app/app.js"></script>
+</body>
+</html>

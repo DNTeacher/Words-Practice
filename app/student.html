@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="format-detection" content="telephone=no">
+<meta property="og:type" content="website">
+<meta property="og:title" content="__OG_TITLE__">
+<meta property="og:description" content="__OG_DESC__">
+<meta property="og:url" content="__OG_URL__">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>__PAGE_TITLE__</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: 한 장짜리 단어장. 공책 줄처럼 단어가 한 줄씩 놓이고, 누른 단어에 형광펜이 그어진다. 빠르기 막대는 위에 고정. */
+:root {
+  --paper: #EEF2F8;      /* 책상 위 종이 바탕 */
+  --sheet: #FFFFFF;      /* 단어장 한 장 */
+  --ink: #15213B;        /* 남색 볼펜 */
+  --ink-soft: #56637F;
+  --rule: #DDE4EF;       /* 공책 줄 */
+  --margin: #F0A9A4;     /* 공책 왼쪽 여백선 */
+  --accent: #2A55D3;     /* 파란 펜 */
+  --accent-ink: #FFFFFF;
+  --marker: #FFE14D;     /* 형광펜 */
+  --chip: #FFF4C2;
+  --shadow: 0 1px 0 rgba(21,33,59,.04), 0 8px 24px -12px rgba(21,33,59,.18);
+  --f-word: "Andika", "Comic Neue", system-ui, sans-serif;
+  --f-ko: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #9CA8C2; --rule: #263049;
+    --margin: #7A3F45; --accent: #8EAEFF; --accent-ink: #0E1422; --marker: rgba(255, 214, 64, .34);
+    --chip: #3A3418; --shadow: 0 8px 24px -12px rgba(0,0,0,.6); color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #9CA8C2; --rule: #263049;
+  --margin: #7A3F45; --accent: #8EAEFF; --accent-ink: #0E1422; --marker: rgba(255, 214, 64, .34);
+  --chip: #3A3418; --shadow: 0 8px 24px -12px rgba(0,0,0,.6); color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  background: var(--paper); color: var(--ink);
+  font-family: var(--f-ko); font-size: 16px; line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+body::before {
+  content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px);
+  z-index: 10; background: var(--paper);
+}
+.wrap {
+  max-width: 560px; margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 40px;
+}
+
+/* 머리말 */
+header { display: grid; gap: 6px; padding-block: 8px 14px; }
+.eyebrow { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--ink-soft); letter-spacing: .02em; }
+.chip { background: var(--chip); color: var(--ink); border-radius: 999px; padding: 1px 8px; font-size: 12px; font-weight: 700; }
+h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+.meta { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+.hint { margin: 0; color: var(--ink-soft); font-size: 14px; }
+.hint b { color: var(--ink); font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.playall {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: 700 14px/1 var(--f-ko); color: var(--accent);
+  background: transparent; border: 1.5px solid var(--accent); border-radius: 999px;
+  padding: 9px 14px; cursor: pointer;
+}
+.playall[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.playall svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* 빠르기 (고정 막대) */
+.speedbar {
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
+  background: var(--paper); padding-block: 8px 12px;
+}
+.speed {
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 10px;
+}
+.speed > span { font-size: 13px; font-weight: 700; color: var(--ink-soft); }
+.seg {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  background: var(--sheet); border: 1px solid var(--rule); border-radius: 12px; padding: 3px; gap: 3px;
+  box-shadow: var(--shadow);
+}
+.seg button {
+  font: 500 15px/1.2 var(--f-ko); color: var(--ink-soft);
+  background: transparent; border: 0; border-radius: 9px; padding: 10px 4px; cursor: pointer;
+  white-space: nowrap;
+}
+.seg button[aria-checked="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+
+/* 단어장 */
+.sheet {
+  list-style: none; margin: 0; padding: 0;
+  background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.sheet li + li { border-top: 1px solid var(--rule); }
+.row {
+  width: 100%; display: grid; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center;
+  gap: 0; min-height: 68px; padding: 10px 12px 10px 0;
+  background: transparent; border: 0; text-align: left; color: inherit; cursor: pointer;
+  font: inherit;
+}
+.row:active { background: color-mix(in srgb, var(--marker) 22%, transparent); }
+.num {
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+  border-right: 1.5px solid var(--margin);
+  font: 500 14px/1 var(--f-ko); color: var(--ink-soft); font-variant-numeric: tabular-nums;
+}
+.txt { min-width: 0; padding-left: 14px; display: grid; gap: 2px; }
+.w {
+  font-family: var(--f-word); font-weight: 700; font-size: 26px; line-height: 1.2;
+  overflow-wrap: anywhere; justify-self: start;
+  background-image: linear-gradient(transparent 58%, var(--marker) 58%, var(--marker) 92%, transparent 92%);
+  background-repeat: no-repeat; background-size: 0% 100%;
+  transition: background-size .35s ease-out;
+  padding-inline: 2px; margin-inline: -2px;
+}
+.m { font-size: 16px; color: var(--ink-soft); overflow-wrap: anywhere; }
+.row.playing .w, .row.done .w { background-size: 100% 100%; }
+.row.done:not(.playing) .w { background-image: linear-gradient(transparent 58%, color-mix(in srgb, var(--marker) 45%, transparent) 58%, color-mix(in srgb, var(--marker) 45%, transparent) 92%, transparent 92%); }
+.spk { width: 44px; height: 44px; display: grid; place-items: center; color: var(--accent); }
+.spk svg { width: 26px; height: 26px; }
+.spk .wv { opacity: .35; }
+.row.playing .spk .wv1 { animation: pulse .7s ease-in-out infinite; }
+.row.playing .spk .wv2 { animation: pulse .7s ease-in-out .18s infinite; }
+@keyframes pulse { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+
+button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.row:focus-visible { outline-offset: -3px; }
+
+footer { margin-top: 18px; color: var(--ink-soft); font-size: 13px; text-align: center; }
+
+/* 지난 단어장 */
+.past { margin-top: 28px; display: grid; gap: 10px; }
+.past h2 { margin: 0; font-size: 16px; font-weight: 700; color: var(--ink-soft); letter-spacing: .02em; }
+.past ol { list-style: none; margin: 0; padding: 0; background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+.past li + li { border-top: 1px solid var(--rule); }
+.past a {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px;
+  min-height: 56px; padding: 12px 16px; color: inherit; text-decoration: none;
+}
+.past a:active { background: color-mix(in srgb, var(--marker) 22%, transparent); }
+.past .pt { font-weight: 700; overflow-wrap: anywhere; }
+.past .pn { color: var(--ink-soft); font-size: 14px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.past .go, .home { color: var(--accent); }
+.past .go { font-size: 20px; line-height: 1; }
+.home {
+  display: block; margin-top: 20px; padding: 14px 16px; text-align: center; font-weight: 700;
+  border: 1.5px solid var(--accent); border-radius: 12px; text-decoration: none;
+}
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.err { color: var(--ink); background: var(--chip); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .w { transition: none; }
+  .row.playing .spk .wv1, .row.playing .spk .wv2 { animation: none; opacity: 1; }
+}
+@media (max-width: 360px) {
+  .w { font-size: 23px; }
+  .seg button { font-size: 14px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><span id="cls">오늘의 영어 단어</span><span class="chip" id="sampleChip" hidden>예시</span></div>
+    <h1 id="title">영어 단어</h1>
+    <div class="meta">
+      <p class="hint">단어 <b id="count">0</b>개 · 단어를 누르면 발음이 나와요</p>
+      <button class="playall" id="playAll" type="button" aria-pressed="false">
+        <svg viewBox="0 0 16 16" aria-hidden="true" id="playAllIcon"><path d="M4 2.5v11l9-5.5z"/></svg>
+        <span id="playAllLabel">모두 듣기</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="speedbar">
+    <div class="speed">
+      <span id="speedLabel">빠르기</span>
+      <div class="seg" role="radiogroup" aria-labelledby="speedLabel" id="speed">
+        <button type="button" role="radio" id="sp-very_slow" data-speed="very_slow" aria-checked="false">아주 천천히</button>
+        <button type="button" role="radio" id="sp-slow" data-speed="slow" aria-checked="false">천천히</button>
+        <button type="button" role="radio" id="sp-normal" data-speed="normal" aria-checked="true">보통</button>
+      </div>
+    </div>
+  </div>
+
+  <ol class="sheet" id="list"></ol>
+  <p class="err" id="err" hidden>소리를 재생하지 못했어요. 휴대폰 소리 크기를 확인하고 다시 눌러 주세요.</p>
+
+  <section class="past" id="past" hidden aria-labelledby="pastTitle">
+    <h2 id="pastTitle">지난 단어장</h2>
+    <ol id="pastList"></ol>
+  </section>
+  <a class="home" id="home" hidden href="#">최신 단어장 보기</a>
+
+  <footer>소리가 작으면 휴대폰 소리 크기를 올려 주세요.</footer>
+</div>
+
+<script>
+const DATA = /*__WORDBOOK_DATA__*/null;
+
+(function () {
+  const list = document.getElementById("list");
+  const playAllBtn = document.getElementById("playAll");
+  const playAllLabel = document.getElementById("playAllLabel");
+  const playAllIcon = document.getElementById("playAllIcon");
+  const errBox = document.getElementById("err");
+  const ICON_PLAY = '<path d="M4 2.5v11l9-5.5z"/>';
+  const ICON_STOP = '<rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/>';
+
+  document.getElementById("title").textContent = DATA.title || "영어 단어";
+  document.getElementById("count").textContent = DATA.words.length;
+  document.getElementById("sampleChip").hidden = !DATA.sample;
+  if (DATA.cls) document.getElementById("cls").textContent = DATA.cls + " 영어 단어";
+
+  // 반 주소에서 열었을 때: 아래에 지난 단어장 목록
+  if (Array.isArray(DATA.past) && DATA.past.length) {
+    const ol = document.getElementById("pastList");
+    DATA.past.forEach(p => {
+      const li = document.createElement("li");
+      const a = document.createElement("a");
+      a.href = p.href;
+      a.innerHTML = '<span class="pt"></span><span class="pn"></span><span class="go" aria-hidden="true">›</span>';
+      a.querySelector(".pt").textContent = p.title;
+      a.querySelector(".pn").textContent = "단어 " + p.n + "개";
+      li.appendChild(a); ol.appendChild(li);
+    });
+    document.getElementById("past").hidden = false;
+  }
+  // 날짜별 주소에서 열었을 때: 반 최신 단어장으로 가는 링크
+  if (DATA.home) {
+    const h = document.getElementById("home");
+    h.href = DATA.home;
+    h.textContent = (DATA.cls ? DATA.cls + " " : "") + "최신 단어장 보기 ›";
+    h.hidden = false;
+  }
+
+  // 빠르기: 마지막 선택을 기억 (저장이 막혀 있으면 '보통')
+  let speed = "normal";
+  try { const s = localStorage.getItem("wordbook-speed"); if (s && ["very_slow","slow","normal"].includes(s)) speed = s; } catch (e) {}
+  function setSpeed(s) {
+    speed = s;
+    document.querySelectorAll("#speed button").forEach(b => b.setAttribute("aria-checked", String(b.dataset.speed === s)));
+    try { localStorage.setItem("wordbook-speed", s); } catch (e) {}
+  }
+  document.getElementById("speed").addEventListener("click", e => {
+    const b = e.target.closest("button[data-speed]"); if (b) setSpeed(b.dataset.speed);
+  });
+  setSpeed(speed);
+
+  // 음성: 단어마다 3가지 빠르기의 mp3가 들어 있다. 처음 누를 때 재생용 주소로 바꾼다.
+  const urls = {};
+  function urlFor(i, key) {
+    const id = i + ":" + key;
+    if (urls[id]) return urls[id];
+    const b64 = DATA.words[i].a[key];
+    let u;
+    try {
+      const bin = atob(b64), arr = new Uint8Array(bin.length);
+      for (let k = 0; k < bin.length; k++) arr[k] = bin.charCodeAt(k);
+      u = URL.createObjectURL(new Blob([arr], { type: "audio/mpeg" }));
+    } catch (e) { u = "data:audio/mpeg;base64," + b64; }
+    return (urls[id] = u);
+  }
+
+  // 오디오 요소 하나를 계속 다시 쓴다 (아이폰 무음 모드·연속 재생에서 가장 안정적)
+  const player = new Audio();
+  player.preload = "auto";
+  let current = -1, queue = null, gapTimer = null;
+
+  const rows = DATA.words.map((w, i) => {
+    const li = document.createElement("li");
+    const btn = document.createElement("button");
+    btn.type = "button"; btn.className = "row"; btn.id = "word-" + (i + 1);
+    btn.setAttribute("aria-label", w.w + ", " + w.m + ", 발음 듣기");
+    btn.innerHTML =
+      '<span class="num" aria-hidden="true"></span>' +
+      '<span class="txt"><span class="w" lang="en"></span><span class="m"></span></span>' +
+      '<span class="spk" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="none"/>' +
+      '<path class="wv wv1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="wv wv2" d="M18.3 6.5a7.5 7.5 0 0 1 0 11"/></svg></span>';
+    btn.querySelector(".num").textContent = i + 1;
+    btn.querySelector(".w").textContent = w.w;
+    btn.querySelector(".m").textContent = w.m;
+    btn.addEventListener("click", () => { stopQueue(); play(i); });
+    li.appendChild(btn); list.appendChild(li);
+    return btn;
+  });
+
+  function mark(i, on) { if (rows[i]) { rows[i].classList.toggle("playing", on); if (on) rows[i].classList.add("done"); } }
+
+  function play(i) {
+    clearTimeout(gapTimer);
+    if (current >= 0) mark(current, false);
+    current = i; mark(i, true); errBox.hidden = true;
+    player.src = urlFor(i, speed);
+    try { player.currentTime = 0; } catch (e) {}
+    const p = player.play();
+    if (p && p.catch) p.catch(() => { mark(i, false); errBox.hidden = false; stopQueue(); });
+  }
+
+  player.addEventListener("ended", () => {
+    mark(current, false);
+    if (queue !== null) {
+      const next = current + 1;
+      if (next >= rows.length) { stopQueue(); return; }
+      const gap = speed === "normal" ? 900 : speed === "slow" ? 1100 : 1400;
+      gapTimer = setTimeout(() => {
+        if (queue === null) return;
+        rows[next].scrollIntoView({ block: "nearest", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        play(next);
+      }, gap);
+    }
+  });
+  player.addEventListener("error", () => { mark(current, false); errBox.hidden = false; stopQueue(); });
+
+  function setPlayAllUI(on) {
+    playAllBtn.setAttribute("aria-pressed", String(on));
+    playAllLabel.textContent = on ? "멈추기" : "모두 듣기";
+    playAllIcon.innerHTML = on ? ICON_STOP : ICON_PLAY;
+  }
+  function stopQueue() {
+    if (queue === null) return;
+    queue = null; clearTimeout(gapTimer); setPlayAllUI(false);
+  }
+  playAllBtn.addEventListener("click", () => {
+    if (queue !== null) { stopQueue(); player.pause(); mark(current, false); return; }
+    queue = true; setPlayAllUI(true);
+    rows[0].scrollIntoView({ block: "nearest" });
+    play(0);
+  });
+})();
+</script>
+</body>
+</html>

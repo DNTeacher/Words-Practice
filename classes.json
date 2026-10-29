@@ -1,0 +1,16 @@
+{
+  "site": "https://dnteacher.github.io/Words-Practice/",
+  "note": "반 주소 코드: 초=e, 중=m + 학년 + 반 (예: 초3A반 → e3a). 반을 추가할 때는 아래에 한 줄 추가하고 make_site.py 를 다시 실행한다.",
+  "classes": [
+    {"code": "e2a", "name": "초2A반"},
+    {"code": "e3a", "name": "초3A반"},
+    {"code": "e3b", "name": "초3B반"},
+    {"code": "e4a", "name": "초4A반"},
+    {"code": "e4b", "name": "초4B반"},
+    {"code": "e5a", "name": "초5A반"},
+    {"code": "e5b", "name": "초5B반"},
+    {"code": "e6a", "name": "초6A반"},
+    {"code": "e6b", "name": "초6B반"},
+    {"code": "e6c", "name": "초6C반"}
+  ]
+}
