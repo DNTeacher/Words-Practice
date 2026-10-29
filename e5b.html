@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<meta name="format-detection" content="telephone=no">
+<meta property="og:type" content="website">
+<meta property="og:title" content="초5B반 영어 단어장">
+<meta property="og:description" content="단어를 누르면 발음이 나와요">
+<meta property="og:url" content="https://dnteacher.github.io/Words-Practice/e5b.html">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>
+<title>초5B반 영어 단어장</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root {
+  --paper: #EEF2F8; --sheet: #FFFFFF; --ink: #15213B; --ink-soft: #56637F; --rule: #DDE4EF;
+  --accent: #2A55D3; --chip: #FFF4C2; --marker: #FFE14D;
+  --shadow: 0 1px 0 rgba(21,33,59,.04), 0 8px 24px -12px rgba(21,33,59,.18);
+  --f-ko: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #9CA8C2; --rule: #263049;
+    --accent: #8EAEFF; --chip: #3A3418; --marker: rgba(255,214,64,.34);
+    --shadow: 0 8px 24px -12px rgba(0,0,0,.6); color-scheme: dark; }
+}
+* { box-sizing: border-box; }
+body { background: var(--paper); color: var(--ink); font: 16px/1.5 var(--f-ko); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+.wrap { max-width: 560px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 40px; }
+.eyebrow { font-size: 13px; font-weight: 500; color: var(--ink-soft); letter-spacing: .02em; margin: 0 0 4px; }
+h1 { margin: 0 0 6px; font-size: 26px; line-height: 1.25; text-wrap: balance; }
+.hint { margin: 0 0 18px; color: var(--ink-soft); font-size: 15px; }
+.grid { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.grid a { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 64px;
+  padding: 14px 16px; background: var(--sheet); border-radius: 14px; box-shadow: var(--shadow);
+  color: inherit; text-decoration: none; font-weight: 700; font-size: 18px; }
+.grid a:active { background: color-mix(in srgb, var(--marker) 22%, var(--sheet)); }
+.grid .go { color: var(--accent); font-size: 22px; line-height: 1; }
+a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.empty { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: 22px 20px; display: grid; gap: 6px; }
+.empty b { font-size: 18px; }
+.empty p { margin: 0; color: var(--ink-soft); }
+.back { display: inline-block; margin-top: 18px; color: var(--accent); font-weight: 700; text-decoration: none; padding: 8px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">초5B반 영어 단어</p>
+  <h1>초5B반 영어 단어장</h1>
+  <p class="hint">이 주소에서 우리 반 단어를 들을 수 있어요.</p>
+  <div class="empty">
+    <b>아직 올라온 단어장이 없어요</b>
+    <p>선생님이 단어장을 올리면 이 주소를 열자마자 바로 나와요.</p>
+  </div>
+  <a class="back" href="index.html">‹ 다른 반 보기</a>
+</div>
+</body>
+</html>
