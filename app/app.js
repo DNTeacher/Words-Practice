@@ -141,13 +141,14 @@ function parse(text) {
   text.split(/\r?\n/).forEach((raw, i) => {
     let line = raw.replace(/ /g, " ").trim();
     if (!line) return;
-    line = line.replace(/^(\d+\s*[.)]|[-•·*▪︎])\s*/, "");
-    const k = line.search(/[가-힣ㄱ-ㅎㅏ-ㅣ]/);
-    let en = k < 0 ? line : line.slice(0, k), ko = k < 0 ? "" : line.slice(k).trim();
-    const open = en.search(/[(\[]\s*$/);
-    if (k > 0 && open >= 0) { ko = en.slice(open) + ko; en = en.slice(0, open); }
-    en = en.replace(/\((n|v|a|adj|adv|prep|conj|pron|int|vt|vi)\.?\)/gi, "").replace(/[’‘]/g, "'").replace(/[\s:=\-–—|,;/]+$/, "").trim().replace(/\s+/g, " ");
-    if (!/^[A-Za-z][A-Za-z' .\-]*$/.test(en)) { errs.push(`${i + 1}번째 줄 "${raw.trim()}": 영어 단어를 찾지 못했어요.`); return; }
+    line = line.replace(/^(\d+\s*[.)]|[-•·*▪︎])\s*/, "").replace(/[’‘]/g, "'");
+    // 앞쪽의 영어 부분이 단어, 그 뒤 전부가 뜻 (숫자·괄호·영어 설명이 섞여도 됨)
+    const m = line.match(/^[A-Za-z][A-Za-z' .\-]*/);
+    if (!m) { errs.push(`${i + 1}번째 줄 "${raw.trim()}": 줄 맨 앞에서 영어 단어를 찾지 못했어요.`); return; }
+    let en = m[0], ko = line.slice(en.length);
+    en = en.replace(/[\s\-–—]+$/, "").trim().replace(/\s+/g, " ");
+    ko = ko.replace(/^[\s:=\-–—|,;/]+/, "").trim();
+    if (!en) { errs.push(`${i + 1}번째 줄 "${raw.trim()}": 영어 단어를 찾지 못했어요.`); return; }
     out.push({ word: en, meaning: ko });
   });
   return { items: out, errs };
