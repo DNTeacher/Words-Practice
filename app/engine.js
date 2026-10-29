@@ -1,8 +1,8 @@
 // 발음 엔진: Kokoro(AI 음성) + Whisper(음성인식) 를 브라우저 안에서 돌린다.
 // 단어마다 보통/천천히/아주 천천히 음성을 만들고, 음성인식으로 다시 받아적어 같은 소리인지 확인한다.
 
-import { Lexicon, guessVariant, espeakToKokoro, soundKey } from "./g2p.js";
-import * as A from "./audio.js";
+import { Lexicon, guessVariant, espeakToKokoro, soundKey } from "./g2p.js?v=2";
+import * as A from "./audio.js?v=2";
 
 const TJS = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.5.1/dist/transformers.min.js";
 const PHONEMIZER = "https://cdn.jsdelivr.net/npm/phonemizer@1.2.1/+esm";

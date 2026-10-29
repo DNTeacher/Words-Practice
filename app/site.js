@@ -71,7 +71,7 @@ export class Pages {
 
 // ---------- GitHub ----------
 export class GitHub {
-  constructor(token) { this.token = token; }
+  constructor(token, branch = BRANCH) { this.token = token; this.branch = branch; }
   async api(path, { method = "GET", body, accept } = {}) {
     const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
       method, cache: "no-store",
@@ -90,13 +90,13 @@ export class GitHub {
     return { ok: true };
   }
   async getText(path) {
-    const r = await this.api(`/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${BRANCH}`, { accept: "application/vnd.github.raw+json" });
+    const r = await this.api(`/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${this.branch}`, { accept: "application/vnd.github.raw+json" });
     if (r.status === 404) return null;
     if (!r.ok) throw new Error(`${path} 를 읽지 못했어요 (${r.status})`);
     return r.text();
   }
   async listRoot() {
-    const r = await this.api(`/contents/?ref=${BRANCH}`);
+    const r = await this.api(`/contents/?ref=${this.branch}`);
     if (!r.ok) throw new Error(`파일 목록을 읽지 못했어요 (${r.status})`);
     return (await r.json()).map(f => f.name);
   }
@@ -104,7 +104,7 @@ export class GitHub {
   async commit(files, message) {
     const json = async r => { if (!r.ok) { const t = await r.text(); throw Object.assign(new Error(`GitHub 오류 ${r.status}: ${t.slice(0, 200)}`), { status: r.status }); } return r.json(); };
     for (let attempt = 0; attempt < 3; attempt++) {
-      const ref = await json(await this.api(`/git/ref/heads/${BRANCH}`));
+      const ref = await json(await this.api(`/git/ref/heads/${this.branch}`));
       const head = ref.object.sha;
       const commit = await json(await this.api(`/git/commits/${head}`));
       const tree = [];
@@ -114,7 +114,7 @@ export class GitHub {
       }
       const newTree = await json(await this.api("/git/trees", { method: "POST", body: { base_tree: commit.tree.sha, tree } }));
       const newCommit = await json(await this.api("/git/commits", { method: "POST", body: { message, tree: newTree.sha, parents: [head] } }));
-      const r = await this.api(`/git/refs/heads/${BRANCH}`, { method: "PATCH", body: { sha: newCommit.sha } });
+      const r = await this.api(`/git/refs/heads/${this.branch}`, { method: "PATCH", body: { sha: newCommit.sha } });
       if (r.ok) return newCommit.sha;
       if (r.status !== 422 && r.status !== 409) await json(r);
     }

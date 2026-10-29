@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js";
-import { Pages, GitHub, SITE, readData } from "./site.js";
-import { displayIpa } from "./g2p.js";
-import * as A from "./audio.js";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=2";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=2";
+import { displayIpa } from "./g2p.js?v=2";
+import * as A from "./audio.js?v=2";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,7 +45,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json");
+    await engine.loadDict("app/dict-us.json?v=2");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -337,7 +337,8 @@ $("preview").addEventListener("click", () => {
   const c = curClass();
   const files = pages.buildSetFiles(c, currentSet(), null);
   const url = URL.createObjectURL(new Blob([files[files._file]], { type: "text/html" }));
-  window.open(url, "_blank");
+  const w = window.open(url, "_blank");
+  if (!w) showErr("새 탭이 막혔어요. 브라우저 주소창 오른쪽의 팝업 차단 표시를 눌러 이 사이트를 허용해 주세요.");
 });
 
 let confirmStep = null;
