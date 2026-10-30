@@ -2,13 +2,27 @@
 // 단어마다 음성을 만들고, 음성인식으로 다시 받아적어 같은 소리인지 확인한다.
 // 무거운 AI 계산은 worker.js(따로 도는 일꾼)에서 한다 → 화면이 멈추지 않는다 (2026-10-30, 크롬 '페이지 응답 없음' 해결).
 
-import { Lexicon, guessVariant, espeakToKokoro, soundKey } from "./g2p.js?v=9";
-import * as A from "./audio.js?v=9";
+import { Lexicon, guessVariant, espeakToKokoro, soundKey } from "./g2p.js?v=10";
+import * as A from "./audio.js?v=10";
 
 const PHONEMIZER = "https://cdn.jsdelivr.net/npm/phonemizer@1.2.1/+esm";
 export const VOICE = "af_heart";
 // 보통 빠르기 하나만 (2026-10-29 선생님 결정). 느린 음성이 다시 필요하면 ["very_slow", 0.7], ["slow", 0.85] 를 앞에 추가.
 export const SPEEDS = [["normal", 1.0]];
+
+// 같은 발음을 조금 다르게 읽는 방법들. AI 음성은 단어 하나만 읽을 때 끝소리 뒤에 모음을 덧붙이기도 해서
+// (club → "clubby", rub → "Robbie") 문장 끝처럼 읽히게 하면 고쳐지는 경우가 많다 (2026-10-30 시험: Whisper·Parakeet).
+// 음성인식이 다르게 들으면 1~3번째 대안을 자동으로 시도하고, 선생님은 '다른 소리 고르기'로 6개 중 직접 고를 수 있다.
+export const VARIANTS = [
+  { id: "plain", suffix: "", speed: 1 },
+  { id: "period", suffix: ".", speed: 1 },
+  { id: "excl", suffix: "!", speed: 1 },
+  { id: "comma", suffix: ",", speed: 1 },
+  { id: "period-slow", suffix: ".", speed: 0.9 },
+  { id: "period-fast", suffix: ".", speed: 1.1 },
+];
+const AUTO_TRY = ["period", "excl", "comma"];
+const variantById = id => VARIANTS.find(v => v.id === id) || VARIANTS[0];
 
 // ---------- 숫자 (음성인식이 thirteen 을 13 으로 적는 경우) ----------
 const ONES = "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen sixteen seventeen eighteen nineteen".split(" ");
@@ -29,6 +43,7 @@ export class Engine {
   constructor() {
     this.lex = null; this.device = null; this._phon = null;
     this.worker = null; this._pending = new Map(); this._seq = 0;
+    this.fixes = {}; // 발음 기호 → 고른 읽기 방법 id (app/fixes.json, 선생님이 고른 소리를 다음에도 쓰기)
   }
 
   async loadDict(url) {
@@ -47,7 +62,7 @@ export class Engine {
 
   // AI 모델 불러오기 (일꾼 안에서). onProgress(0~1, 설명)
   async loadModels(onProgress = () => {}) {
-    this.worker = new Worker(new URL("./worker.js?v=9", import.meta.url), { type: "module" });
+    this.worker = new Worker(new URL("./worker.js?v=10", import.meta.url), { type: "module" });
     this.worker.onmessage = e => {
       const d = e.data;
       if (d.type === "progress") return onProgress(d.p, d.txt);
@@ -113,9 +128,17 @@ export class Engine {
     return soundKey(parts.join("")) === soundKey(item.ps);
   }
 
-  // 단어 하나의 음성 만들기 (SPEEDS 에 느린 빠르기가 있으면 그것도. baseSpeed: '다시 만들기' 때 조금 다른 빠르기로)
+  // 읽기 방법 하나로 소리 만들기
+  async variantAudio(ps, vid) {
+    const v = variantById(vid);
+    return this.synth(ps + v.suffix, v.speed);
+  }
+
+  // 단어 하나의 음성 만들기 (선생님이 고른 방법 → 예전에 고른 방법(fixes) → 기본 순서. SPEEDS 에 느린 빠르기가 있으면 그것도)
   async makeAudio(item) {
-    item.base = await this.synth(item.ps, item.baseSpeed || 1);
+    item.variantUsed = item.variant || this.fixes[item.ps] || "plain";
+    item.autoFixed = false;
+    item.base = await this.variantAudio(item.ps, item.variantUsed);
     item.audio = { normal: A.finish(item.base) };
     item.method = { normal: "kokoro" };
     for (const [key, t] of SPEEDS) {
@@ -147,6 +170,15 @@ export class Engine {
       if (it.check[key]) continue;
       let heard = await this.transcribe(it.audio[key]);
       let ok = this.heardOk(it, heard) || (key !== "normal" && it.check.normal?.heard && plain(heard) === plain(it.check.normal.heard));
+      // 보통 빠르기가 다르게 들리면 다른 읽기 방법을 자동으로 시도 (선생님이 직접 고른 소리는 그대로 둔다)
+      if (!ok && key === "normal" && !it.variant) {
+        for (const vid of AUTO_TRY) {
+          if (vid === it.variantUsed) continue;
+          const base = await this.variantAudio(it.ps, vid), a = A.finish(base);
+          const h = await this.transcribe(a);
+          if (this.heardOk(it, h)) { it.base = base; it.audio.normal = a; it.variantUsed = vid; it.autoFixed = true; heard = h; ok = true; break; }
+        }
+      }
       if (!ok && key !== "normal") {
         for (const m of A.SLOW_METHODS.slice(1)) {
           const a = A.finish(m.make(it.base, t));

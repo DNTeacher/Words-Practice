@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=9";
-import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=9";
-import { displayIpa } from "./g2p.js?v=9";
-import * as A from "./audio.js?v=9";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=10";
+import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=10";
+import { displayIpa } from "./g2p.js?v=10";
+import * as A from "./audio.js?v=10";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -46,9 +46,10 @@ async function init() {
   onClassChange();
 
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
+  loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=9");
+    await engine.loadDict("app/dict-us.json?v=10");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -61,6 +62,13 @@ async function init() {
     setEngine("AI를 불러오지 못했어요", 0, "err");
     $("makeNote").textContent = "인터넷 연결을 확인하고 새로고침해 주세요. (" + (e.message || e) + ")";
   }
+}
+
+async function loadFixes() {
+  try {
+    const t = gh ? await gh.getText("app/fixes.json") : await (await fetch("app/fixes.json", { cache: "no-cache" })).text();
+    engine.fixes = t ? JSON.parse(t) : {};
+  } catch (e) { engine.fixes = {}; }
 }
 
 function setEngine(text, p, cls = "") {
@@ -211,7 +219,7 @@ async function regen(it, { reprepare = false } = {}) {
   busy = true; setBusy(true);
   try {
     it.audio = null; it.check = null; it.mp3 = null; it.override = false;
-    if (reprepare) { it.variants = null; it.choice = null; it.guessed = false; it.missing = null; await engine.prepare(it); }
+    if (reprepare) { it.variants = null; it.choice = null; it.guessed = false; it.missing = null; it.variant = null; it.manualPick = false; await engine.prepare(it); }
     renderItem(it);
     await engine.makeAudio(it);
     renderItem(it);
@@ -267,6 +275,7 @@ function renderItem(it) {
   else chips.append(h("span", { class: "chip warn" }, "직접 들어 보세요"));
   if (it.source === "espeak") chips.append(h("span", { class: "chip bad" }, "사전에 없는 단어"));
   if (it.variants && it.guessed) chips.append(h("span", { class: "chip info" }, "뜻을 보고 발음을 골랐어요"));
+  if (it.audio && it.variantUsed && it.variantUsed !== "plain") chips.append(h("span", { class: "chip info" }, it.manualPick ? `고른 소리 (소리 ${VARIANTS.findIndex(v => v.id === it.variantUsed) + 1})` : it.autoFixed ? "소리를 자동으로 고쳤어요" : "예전에 고른 소리"));
   pron.append(chips);
 
   const notes = [];
@@ -281,15 +290,40 @@ function renderItem(it) {
     notes.push(h("div", { class: "note" }, "음성인식이 ", bad.map(k => (SPEEDS.length > 1 ? SPEED_KO[k] + ": " : "") + heardTxt(k)).join(" · "), "."));
     notes.push(h("div", { class: "chips" },
       h("button", { class: "btn small ghost", type: "button", onclick: () => { it.override = true; renderItem(it); updateSummary(); } }, "들어 보니 괜찮아요"),
-      h("button", { class: "btn small quiet", type: "button", onclick: () => { it.baseSpeed = it.baseSpeed === 0.92 ? 1.06 : 0.92; regen(it); } }, "다시 만들기")));
+      h("button", { class: "btn small quiet", type: "button", onclick: () => { it.pickerOpen = true; renderItem(it); } }, "다른 소리 고르기")));
   }
   pron.append(...notes);
+  if (it.pickerOpen && it.audio) pron.append(picker(it));
 
   const play = h("div", { class: "play" }, SPEEDS.map(([k]) => k).reverse().map(k =>
-    h("button", { class: "playbtn", type: "button", disabled: !it.audio, "data-k": k, "aria-label": `${it.word} 듣기`, onclick: e => playAudio(it.audio && it.audio[k], e.currentTarget) }, SPEEDS.length > 1 ? `▶ ${SPEED_KO[k]}` : "▶ 듣기")));
+    h("button", { class: "playbtn", type: "button", disabled: !it.audio, "data-k": k, "aria-label": `${it.word} 듣기`, onclick: e => playAudio(it.audio && it.audio[k], e.currentTarget) }, SPEEDS.length > 1 ? `▶ ${SPEED_KO[k]}` : "▶ 듣기")),
+    st !== "warn" && it.audio && !it.pickerOpen ? h("button", { class: "btn quiet small", type: "button", onclick: () => { it.pickerOpen = true; renderItem(it); } }, "다른 소리") : null);
 
   it.el.replaceChildren(h("div", { class: "no" }, it.no), h("div", {}, view, editbox), pron, play);
   if (busy) it.el.querySelectorAll("button:not(.playbtn)").forEach(b => b.disabled = true);
+}
+
+// '다른 소리 고르기': 같은 발음을 6가지로 조금씩 다르게 읽어 보고 가장 자연스러운 것을 고른다.
+function picker(it) {
+  it.vprev = it.vprev || {};
+  const box = h("div", { class: "picker" },
+    h("div", { class: "note" }, "들어 보고 가장 자연스러운 소리를 골라 주세요. 고른 소리는 올릴 때 저장돼서 다음에도 이 단어에 쓰여요."));
+  const row = h("div", { class: "choices" });
+  VARIANTS.forEach((v, vi) => {
+    const cur = v.id === it.variantUsed;
+    const pv = h("button", { class: "pv playbtn", type: "button", "aria-label": `소리 ${vi + 1} 듣기`, onclick: async e => {
+      const b = e.currentTarget;
+      if (cur) return playAudio(it.audio.normal, b);
+      if (!it.vprev[v.id]) { b.textContent = "…"; it.vprev[v.id] = A.finish(await engine.variantAudio(it.ps, v.id)); b.textContent = "▶"; }
+      playAudio(it.vprev[v.id], b);
+    } }, "▶");
+    const sel = h("button", { class: "sel", type: "button", "aria-pressed": String(cur), disabled: cur, onclick: () => {
+      it.variant = v.id; it.manualPick = true; it.pickerOpen = false; regen(it);
+    } }, cur ? `소리 ${vi + 1} (지금)` : `소리 ${vi + 1} 쓰기`);
+    row.append(h("span", { class: "choice", "aria-pressed": String(cur) }, pv, sel));
+  });
+  box.append(row, h("button", { class: "btn quiet small", type: "button", onclick: () => { it.pickerOpen = false; renderItem(it); } }, "닫기"));
+  return box;
 }
 
 function syncTextarea() { $("words").value = items.map(it => `${it.word} ${it.meaning}`.trim()).join("\n"); saveDraft(); }
@@ -366,13 +400,29 @@ async function publish(confirmed = {}) {
     const cur = await gh.getText(`${c.code}.html`);
     const existing = await gh.listRoot();
     const r = await pages.buildSetFiles(c, set, cur, { replaceHref: editingThis ? editing.href : null, getData: href => gh.getText(href), existing });
+    const fx = await collectFixes();
+    if (fx) r.files["app/fixes.json"] = JSON.stringify(fx, null, 2) + "\n";
     await gh.commit(r.files, `${c.name} ${set.title} ${r.replacing ? "고침" : "올림"} (단어장 앱)`);
+    if (fx) engine.fixes = fx;
     editing = null; // 올린 뒤에는 새로 시작 (제목을 바꿔 다시 올리면 새 단어장으로 추가, 같은 제목이면 바꿀지 물음)
     showDone(c, set, r);
     onClassChange();
   } catch (e) {
     console.error(e); showErr("올리지 못했어요: " + (e.message || e));
   } finally { busy = false; setBusy(false); $("publish").textContent = "올리기"; }
+}
+
+// 이번 단어장에서 기본과 다른 소리를 쓴 단어를 app/fixes.json 에 기록 (바뀐 게 없으면 null)
+async function collectFixes() {
+  let base = {};
+  try { const t = await gh.getText("app/fixes.json"); if (t) base = JSON.parse(t); } catch (e) { base = { ...engine.fixes }; }
+  const fx = { ...base };
+  for (const it of items) {
+    if (!it.ps || !it.variantUsed) continue;
+    if (it.variantUsed !== "plain") fx[it.ps] = it.variantUsed;
+    else if (it.manualPick) delete fx[it.ps];
+  }
+  return JSON.stringify(fx) === JSON.stringify(base) ? null : fx;
 }
 
 function askConfirm(msg, yes) {

@@ -88,6 +88,8 @@ textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px s
 .choice .sel { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; color: inherit; }
 .choice .pv { border: 0; background: transparent; color: var(--accent); cursor: pointer; padding: 2px 4px; font-size: 13px; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.picker { margin-top: 8px; padding: 10px 12px; border-radius: 12px; background: var(--paper); display: grid; gap: 6px; justify-items: start; }
+.picker .choice .sel[disabled] { cursor: default; }
 .chip { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-size: 12.5px; font-weight: 700; }
 .chip.ok { background: var(--ok-bg); color: var(--ok); }
 .chip.warn { background: var(--warn-bg); color: var(--warn); }
@@ -235,6 +237,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=9"></script>
+<script type="module" src="app/app.js?v=10"></script>
 </body>
 </html>
