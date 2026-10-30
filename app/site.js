@@ -41,6 +41,29 @@ export class Pages {
     return this.listPage({ title: `${c.name} 영어 단어장`, desc: "단어를 누르면 발음이 나와요", url: SITE + c.code + ".html", body });
   }
 
+  // 주소가 바뀐 옛 주소에 남겨 두는 안내 페이지: 열자마자 새 주소로 넘어간다
+  redirectPage(href) {
+    const h = esc(href), full = esc(SITE + href);
+    return `<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="wp-redirect" content="${h}">
+<meta http-equiv="refresh" content="0; url=${h}">
+<link rel="canonical" href="${full}">
+<title>주소가 바뀌었어요</title>
+<script>location.replace(${JSON.stringify(href)});</script>
+</head>
+<body style="margin:0;padding:24px;font:16px/1.6 system-ui,sans-serif;background:#EEF2F8;color:#15213B">
+<p>단어장 주소가 바뀌었어요. 새 주소로 이동하고 있어요.</p>
+<p><a href="${h}" style="color:#2A55D3;font-weight:700">새 주소로 가기 ›</a></p>
+</body>
+</html>
+`;
+  }
+
   // 새 단어장(set) 을 올릴 때 바뀌는 두 파일: 날짜별 페이지, 반 페이지
   buildSetFiles(cls, set, currentClassHtml) {
     const file = `${cls.code}-${set.date}.html`;

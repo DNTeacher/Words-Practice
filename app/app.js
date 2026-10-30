@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=6";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=6";
-import { displayIpa } from "./g2p.js?v=6";
-import * as A from "./audio.js?v=6";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=7";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=7";
+import { displayIpa } from "./g2p.js?v=7";
+import * as A from "./audio.js?v=7";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,7 +45,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=6");
+    await engine.loadDict("app/dict-us.json?v=7");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -437,6 +437,7 @@ function renderClassList() {
       h("b", {}, c.name), h("code", {}, `${SITE}${c.code}.html`),
       h("span", { class: "acts" },
         h("button", { class: "btn quiet small", type: "button", onclick: edit }, "이름 바꾸기"),
+        h("button", { class: "btn quiet small", type: "button", onclick: editCode }, "주소 바꾸기"),
         h("button", { class: "btn quiet small", type: "button", onclick: () => saveQr(c) }, "QR 저장"),
         h("button", { class: "btn quiet small", type: "button", onclick: askRemove }, "목록에서 빼기")));
     const edit = () => {
@@ -446,6 +447,16 @@ function renderClassList() {
         h("button", { class: "btn quiet small", type: "button", onclick: view }, "취소")));
       inp.focus(); inp.select();
       inp.addEventListener("keydown", e => { if (e.key === "Enter") renameClass(c, inp.value.trim()); if (e.key === "Escape") view(); });
+    };
+    const editCode = () => {
+      const inp = h("input", { type: "text", value: c.code, "aria-label": `${c.name} 새 주소 코드`, style: "max-width:140px" });
+      li.replaceChildren(h("b", {}, c.name),
+        h("span", { class: "ask" }, `새 주소: ${SITE}`, inp, ".html  (옛 주소로 들어와도 새 주소로 넘어가요)"),
+        h("span", { class: "acts" },
+          h("button", { class: "btn small", type: "button", onclick: () => changeCode(c, inp.value.trim().toLowerCase()) }, "바꾸기"),
+          h("button", { class: "btn quiet small", type: "button", onclick: view }, "취소")));
+      inp.focus(); inp.select();
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") changeCode(c, inp.value.trim().toLowerCase()); if (e.key === "Escape") view(); });
     };
     const askRemove = () => li.replaceChildren(
       h("span", { class: "ask" }, `${c.name}을(를) 반 목록에서 뺄까요? 이미 올린 단어장과 공지한 주소는 그대로 열려요.`),
@@ -493,6 +504,56 @@ async function renameClass(c, newName) {
   } catch (e) { console.error(e); classMsg("이름을 바꾸지 못했어요: " + (e.message || e), false); }
 }
 
+// 주소 바꾸기: 그 반 페이지와 지금까지 올린 단어장을 새 주소로 옮기고, 옛 주소에는 새 주소로 넘겨 주는 안내 페이지를 남긴다.
+async function changeCode(c, code) {
+  if (!gh) return classMsg("주소를 바꾸려면 먼저 위에서 GitHub 열쇠를 넣어 주세요.", false);
+  if (code === c.code) return renderClassList();
+  if (!/^[a-z0-9]{2,12}$/.test(code)) return classMsg("주소 코드는 영어 소문자와 숫자 2~12자로 적어 주세요. (예: m1a)", false);
+  if (classes.some(x => x.code === code)) return classMsg("다른 반이 이미 쓰고 있는 주소예요.", false);
+  classMsg(`${c.name} 주소를 ${code}.html 로 옮기는 중…`);
+  try {
+    const all = await gh.listRoot();
+    // 새 주소 자리에 파일이 있으면: 이 반이 예전에 쓰던 주소(지금 이 반으로 넘겨 주는 안내 페이지)일 때만 다시 쓸 수 있다.
+    // 다른 반으로 넘겨 주는 주소를 가져오면 그 반 학생들의 옛 링크가 엉뚱한 반으로 열리기 때문.
+    const pointsHere = html => !!html && new RegExp(`name="wp-redirect" content="${c.code}[.-]`).test(html);
+    const clash = all.filter(n => n === `${code}.html` || new RegExp(`^${code}-\\d{4}-\\d{2}-\\d{2}\\.html$`).test(n));
+    for (const n of clash) if (!pointsHere(await gh.getText(n))) return classMsg(`${code}.html 은(는) 이미 쓰였거나 예전에 다른 반이 쓰던 주소예요. 옛 링크가 헷갈리지 않도록 다른 코드를 골라 주세요.`, false);
+
+    const reg = JSON.parse(await gh.getText("classes.json"));
+    const target = reg.classes.find(x => x.code === c.code);
+    if (!target) throw new Error("반 목록에서 이 반을 찾지 못했어요. 새로고침해 주세요.");
+    const oldCode = target.code; target.code = code;
+    const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
+    const re = new RegExp(`^${oldCode}-(\\d{4}-\\d{2}-\\d{2})\\.html$`);
+    const moved = [];
+    for (const name of all.filter(n => re.test(n))) {
+      const html = await gh.getText(name), d = readData(html);
+      if (!d) continue; // 이미 안내 페이지
+      const date = name.match(re)[1], nn = `${code}-${date}.html`;
+      d.cls_code = code; d.home = `${code}.html`;
+      files[nn] = pages.studentPage(d, { title: `${target.name} ${d.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${d.words.length}개`, url: SITE + nn });
+      files[name] = pages.redirectPage(nn);
+      moved.push(nn);
+    }
+    const cd = readData(await gh.getText(`${oldCode}.html`));
+    if (cd && cd.cls_code === oldCode) {
+      cd.cls_code = code;
+      cd.past = (cd.past || []).map(p => ({ ...p, href: p.href.replace(new RegExp(`^${oldCode}-`), `${code}-`) }));
+      files[`${code}.html`] = pages.studentPage(cd, { title: `${target.name} 영어 단어장`, desc: `최신: ${cd.title} · 단어 ${cd.words.length}개`, url: SITE + code + ".html" });
+    } else {
+      files[`${code}.html`] = pages.emptyClassPage(target);
+    }
+    files[`${oldCode}.html`] = pages.redirectPage(`${code}.html`);
+    await gh.commit(files, `${target.name} 주소 바꿈: ${oldCode}.html → ${code}.html (단어장 앱)`);
+    const wasSelected = $("cls").value === oldCode;
+    await loadClasses();
+    if (wasSelected) $("cls").value = code;
+    saveDraft(); onClassChange();
+    classMsg(`${target.name} 주소를 바꿨어요: ${SITE}${code}.html (1~2분 뒤 열려요). 옛 주소와 옛 QR로 들어와도 새 주소로 넘어가요. 앞으로는 새 QR을 공지해 주세요.`, true,
+      h("button", { class: "btn small", type: "button", onclick: () => saveQr(target) }, "새 주소 QR 저장"));
+  } catch (e) { console.error(e); classMsg("주소를 바꾸지 못했어요: " + (e.message || e), false); }
+}
+
 // 반 목록에서 빼기: 반 목록과 첫 화면에서만 뺀다 (페이지는 지우지 않아 예전 주소도 계속 열림).
 async function removeClass(c) {
   if (!gh) return classMsg("반을 빼려면 먼저 위에서 GitHub 열쇠를 넣어 주세요.", false);
@@ -527,7 +588,9 @@ $("addClass").addEventListener("click", async () => {
     const nc = { code, name };
     reg.classes.push(nc);
     const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
-    const existing = readData(await gh.getText(`${code}.html`));
+    const existingHtml = await gh.getText(`${code}.html`);
+    if (existingHtml && existingHtml.includes('name="wp-redirect"')) return bad(`${code} 는 예전에 다른 반이 쓰던 주소예요 (지금은 그 반 새 주소로 넘겨 주는 중). 다른 코드를 골라 주세요.`);
+    const existing = readData(existingHtml);
     // 예전에 빼 둔 반을 같은 코드로 다시 추가하면 그 반 단어장을 그대로 잇는다 (이름만 새로)
     files[`${code}.html`] = existing && existing.cls_code === code
       ? pages.studentPage({ ...existing, cls: name }, { title: `${name} 영어 단어장`, desc: `최신: ${existing.title} · 단어 ${existing.words.length}개`, url: SITE + code + ".html" })
