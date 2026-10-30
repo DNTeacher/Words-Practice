@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=7";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=7";
-import { displayIpa } from "./g2p.js?v=7";
-import * as A from "./audio.js?v=7";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=8";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=8";
+import { displayIpa } from "./g2p.js?v=8";
+import * as A from "./audio.js?v=8";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,7 +45,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=7");
+    await engine.loadDict("app/dict-us.json?v=8");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -380,8 +380,8 @@ function askConfirm(msg, yes) {
 
 function showDone(c, set, file) {
   const classUrl = SITE + c.code + ".html", dayUrl = SITE + file;
-  // 카톡 공지 문구 (선생님 지정 문구, 2026-10-29)
-  const msg = `다음 단어 시험입니다.\n링크에 접속해서 발음을 들어보며 공부하세요.\n${classUrl}`;
+  // 카톡 공지 문구 (선생님 지정 문구, 2026-10-30 수정)
+  const msg = `다나쌤 다음 단어 시험입니다.\n아래 링크에 접속해서 발음을 들어보며 공부하세요.\n${classUrl}`;
   const card = $("doneCard");
   card.replaceChildren(
     h("p", {}, h("b", {}, `${c.name}에 올렸어요.`), " 1~2분 뒤 학생 주소에 나와요."),
