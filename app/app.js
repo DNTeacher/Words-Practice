@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=4";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=4";
-import { displayIpa } from "./g2p.js?v=4";
-import * as A from "./audio.js?v=4";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=5";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=5";
+import { displayIpa } from "./g2p.js?v=5";
+import * as A from "./audio.js?v=5";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,12 +45,14 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=4");
+    await engine.loadDict("app/dict-us.json?v=5");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
     $("make").disabled = false;
-    $("makeNote").textContent = "처음 만들 때는 1~2분쯤 걸려요.";
+    $("makeNote").textContent = engine.device === "webgpu"
+      ? "처음 만들 때는 1~2분쯤 걸려요."
+      : "이 컴퓨터에서는 그래픽 가속을 쓸 수 없어 단어 하나에 4초쯤 걸려요. 크롬 설정 → 시스템 → ‘가능한 경우 그래픽 가속 사용’을 켜고 크롬을 다시 열면 빨라질 수 있어요.";
   } catch (e) {
     console.error(e);
     setEngine("AI를 불러오지 못했어요", 0, "err");
