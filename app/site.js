@@ -1,6 +1,7 @@
 // 학생 페이지 만들기 + GitHub 저장소에 올리기
 // 페이지 구조는 Python make_site.py 와 같다:
-//   index.html (반 목록), e3a.html (반 최신 단어장 + 지난 단어장), e3a-2026-10-30.html (날짜별)
+//   index.html (반 목록), e3a.html (반 최신 날짜의 단어장 전부 + 지난 단어장), e3a-2026-10-30.html (날짜별)
+//   같은 반·같은 날짜에 제목이 다른 단어장은 e3a-2026-10-30-2.html, -3.html … 로 따로 저장 (2026-10-30)
 
 export const SITE = "https://dnteacher.github.io/Words-Practice/";
 const OWNER = "DNTeacher", REPO = "Words-Practice", BRANCH = "main";
@@ -11,6 +12,23 @@ const DATA_RE = /const DATA = ([^\n]*);\n/;
 export function readData(html) {
   const m = html && html.match(DATA_RE);
   return m ? JSON.parse(m[1]) : null;
+}
+
+// 날짜별 파일 이름: 반코드-YYYY-MM-DD.html 또는 반코드-YYYY-MM-DD-2.html
+export const datedRe = code => new RegExp(`^${code}-(\\d{4}-\\d{2}-\\d{2})(?:-(\\d+))?\\.html$`);
+const dateOf = href => (String(href).match(/(\d{4}-\d{2}-\d{2})/) || [""])[0];
+
+// 반 페이지 DATA 의 "그날 단어장들" (예전 형식은 words 하나)
+export function setsOf(d, code) {
+  if (!d) return [];
+  if (Array.isArray(d.sets) && d.sets.length) return d.sets;
+  return d.words ? [{ href: `${code || d.cls_code}-${d.date}.html`, title: d.title, words: d.words }] : [];
+}
+export const wordCount = d => setsOf(d).reduce((n, s) => n + s.words.length, 0);
+export function dayTitle(date, sets) {
+  if (sets.length === 1) return sets[0].title;
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || "");
+  return m ? `${+m[2]}월 ${+m[3]}일 단어장` : "단어장";
 }
 
 export class Pages {
@@ -64,31 +82,68 @@ export class Pages {
 `;
   }
 
-  // 새 단어장(set) 을 올릴 때 바뀌는 두 파일: 날짜별 페이지, 반 페이지
-  buildSetFiles(cls, set, currentClassHtml) {
-    const file = `${cls.code}-${set.date}.html`;
-    const base = { date: set.date, title: set.title, sample: false, words: set.words, cls: cls.name, cls_code: cls.code };
-    const dated = this.studentPage({ ...base, home: `${cls.code}.html` }, {
-      title: `${cls.name} ${set.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${set.words.length}개`, url: SITE + file,
+  // 반 페이지 HTML (그날 단어장 전부 + 지난 단어장)
+  classPage(cls, date, sets, past) {
+    const title = dayTitle(date, sets);
+    const n = sets.reduce((k, s) => k + s.words.length, 0);
+    const data = { date, title, sample: false, cls: cls.name, cls_code: cls.code, sets: sets.map(s => ({ href: s.href, title: s.title, words: s.words })), past };
+    return this.studentPage(data, {
+      title: `${cls.name} 영어 단어장`,
+      desc: sets.length > 1 ? `최신: ${title} (단어장 ${sets.length}개) · 단어 ${n}개` : `최신: ${title} · 단어 ${n}개`,
+      url: SITE + cls.code + ".html",
     });
-    // 지금 반 페이지에 있는 목록 (최신 + 지난 단어장)
+  }
+  datedPage(cls, href, set) {
+    return this.studentPage({ date: set.date, title: set.title, sample: false, words: set.words, cls: cls.name, cls_code: cls.code, home: `${cls.code}.html` }, {
+      title: `${cls.name} ${set.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${set.words.length}개`, url: SITE + href,
+    });
+  }
+
+  // 지금 반 페이지에 있는 단어장 목록 (최신 날짜 단어장들 + 지난 단어장). [{href, date, title, n, words?}]
+  entriesOf(cls, currentClassHtml) {
     const cur = readData(currentClassHtml);
-    let entries = [];
-    if (cur && cur.cls_code === cls.code) {
-      entries.push({ href: `${cls.code}-${cur.date}.html`, date: cur.date, title: cur.title, n: cur.words.length, data: cur });
-      for (const p of cur.past || []) entries.push({ ...p, date: (p.href.match(/(\d{4}-\d{2}-\d{2})/) || [])[1] || "" });
+    if (!cur || cur.cls_code !== cls.code) return [];
+    const out = setsOf(cur, cls.code).map(s => ({ href: s.href, date: cur.date, title: s.title, n: s.words.length, words: s.words }));
+    for (const p of cur.past || []) out.push({ href: p.href, date: p.date || dateOf(p.href), title: p.title, n: p.n });
+    return out;
+  }
+
+  // 새 단어장(set) 을 올릴 때 바뀌는 파일: 그 단어장 페이지, 반 페이지.
+  //  - replaceHref: '지난 단어장 고치기'로 불러온 단어장 (날짜가 같으면 그 파일을 고친다)
+  //  - 같은 날짜에 같은 제목이 있으면 그 단어장을 바꾸고, 제목이 다르면 새 단어장으로 추가 (-2, -3 …)
+  //  - getData(href): 반 페이지에 단어가 없는 최신 날짜 단어장의 DATA 를 가져오는 함수 (예전 형식 대비)
+  //  - existing: 저장소에 있는 파일 이름들 (빈 이름 고르기용)
+  async buildSetFiles(cls, set, currentClassHtml, { replaceHref = null, getData = null, existing = [] } = {}) {
+    const entries = this.entriesOf(cls, currentClassHtml);
+    const sameDay = entries.filter(e => e.date === set.date);
+    let href = null;
+    if (replaceHref && dateOf(replaceHref) === set.date && datedRe(cls.code).test(replaceHref)) href = replaceHref;
+    if (!href) { const same = sameDay.find(e => e.title === set.title); if (same) href = same.href; }
+    const replacing = !!href;
+    if (!href) {
+      const used = new Set([...sameDay.map(e => e.href), ...existing.filter(n => dateOf(n) === set.date && datedRe(cls.code).test(n))]);
+      const base = `${cls.code}-${set.date}`;
+      href = `${base}.html`;
+      for (let k = 2; used.has(href); k++) href = `${base}-${k}.html`;
     }
-    entries = entries.filter(e => e.href !== file);
-    entries.push({ href: file, date: set.date, title: set.title, n: set.words.length, data: base });
-    entries.sort((a, b) => b.date.localeCompare(a.date));
-    const latest = entries[0];
-    const latestData = { ...latest.data };
-    delete latestData.home; delete latestData.past;
-    latestData.past = entries.slice(1).map(e => ({ href: e.href, title: e.title, n: e.n }));
-    const classPage = this.studentPage(latestData, {
-      title: `${cls.name} 영어 단어장`, desc: `최신: ${latestData.title} · 단어 ${latestData.words.length}개`, url: SITE + cls.code + ".html",
-    });
-    return { [file]: dated, [`${cls.code}.html`]: classPage, _file: file };
+    const entry = { href, date: set.date, title: set.title, n: set.words.length, words: set.words };
+    const at = entries.findIndex(e => e.href === href);
+    if (at >= 0) entries[at] = entry; else entries.push(entry);
+    // 날짜 최신순 (같은 날짜 안에서는 올린 순서 그대로)
+    const order = new Map(entries.map((e, i) => [e, i]));
+    entries.sort((x, y) => y.date.localeCompare(x.date) || order.get(x) - order.get(y));
+    const latestDate = entries[0].date;
+    const latest = entries.filter(e => e.date === latestDate);
+    for (const e of latest) {
+      if (e.words) continue;
+      const d = getData ? readData(await getData(e.href)) : null;
+      e.words = d ? d.words : [];
+    }
+    const past = entries.filter(e => e.date !== latestDate).map(e => ({ href: e.href, title: e.title, n: e.n, date: e.date }));
+    return {
+      files: { [href]: this.datedPage(cls, href, set), [`${cls.code}.html`]: this.classPage(cls, latestDate, latest, past) },
+      file: href, replacing, sameDayCount: entries.filter(e => e.date === set.date).length,
+    };
   }
 }
 

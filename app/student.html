@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
 <style>
-/* Layout: 한 장짜리 단어장. 공책 줄처럼 단어가 한 줄씩 놓이고, 누른 단어에 형광펜이 그어진다. (보통 빠르기 하나만, 2026-10-29 선생님 결정) */
+/* Layout: 한 장짜리 단어장. 공책 줄처럼 단어가 한 줄씩 놓이고, 누른 단어에 형광펜이 그어진다. (보통 빠르기 하나만, 2026-10-29 선생님 결정). 같은 날 단어장이 여러 개면 제목별 구역으로 차례로 (2026-10-30). */
 :root {
   --paper: #EEF2F8;      /* 책상 위 종이 바탕 */
   --sheet: #FFFFFF;      /* 단어장 한 장 */
@@ -79,6 +79,13 @@ h1 { margin: 0; font-size: 26px; line-height: 1.25; font-weight: 700; letter-spa
 }
 .playall[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
 .playall svg { width: 14px; height: 14px; fill: currentColor; }
+
+/* 같은 날 단어장이 여러 개일 때: 제목별 구역 */
+.lists { display: grid; gap: 22px; }
+.group { display: grid; gap: 10px; }
+.gtitle { margin: 0; display: flex; align-items: baseline; gap: 8px; font-size: 18px; line-height: 1.3; font-weight: 700; text-wrap: balance; }
+.gtitle .gn { flex: none; display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 13px; font-variant-numeric: tabular-nums; }
+.gtitle .gc { flex: none; font-size: 13px; font-weight: 500; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 /* 단어장 */
 .sheet {
@@ -159,7 +166,7 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     <div class="eyebrow"><span id="cls">오늘의 영어 단어</span><span class="chip" id="sampleChip" hidden>예시</span></div>
     <h1 id="title">영어 단어</h1>
     <div class="meta">
-      <p class="hint">단어 <b id="count">0</b>개 · 단어를 누르면 발음이 나와요</p>
+      <p class="hint" id="hint">단어 <b id="count">0</b>개 · 단어를 누르면 발음이 나와요</p>
       <button class="playall" id="playAll" type="button" aria-pressed="false">
         <svg viewBox="0 0 16 16" aria-hidden="true" id="playAllIcon"><path d="M4 2.5v11l9-5.5z"/></svg>
         <span id="playAllLabel">모두 듣기</span>
@@ -167,7 +174,7 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     </div>
   </header>
 
-  <ol class="sheet" id="list"></ol>
+  <div class="lists" id="lists"></div>
   <p class="err" id="err" hidden>소리를 재생하지 못했어요. 휴대폰 소리 크기를 확인하고 다시 눌러 주세요.</p>
 
   <section class="past" id="past" hidden aria-labelledby="pastTitle">
@@ -183,7 +190,7 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 const DATA = /*__WORDBOOK_DATA__*/null;
 
 (function () {
-  const list = document.getElementById("list");
+  const listsEl = document.getElementById("lists");
   const playAllBtn = document.getElementById("playAll");
   const playAllLabel = document.getElementById("playAllLabel");
   const playAllIcon = document.getElementById("playAllIcon");
@@ -191,8 +198,13 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   const ICON_PLAY = '<path d="M4 2.5v11l9-5.5z"/>';
   const ICON_STOP = '<rect x="3.5" y="3.5" width="9" height="9" rx="1.5"/>';
 
+  // 같은 날 단어장이 여러 개면 DATA.sets 에 제목별로 들어 있다 (반 주소). 하나면 DATA.words.
+  const groups = Array.isArray(DATA.sets) && DATA.sets.length ? DATA.sets : [{ title: DATA.title, words: DATA.words || [] }];
+  const multi = groups.length > 1;
+  const allWords = groups.flatMap(g => g.words);
   document.getElementById("title").textContent = DATA.title || "영어 단어";
-  document.getElementById("count").textContent = DATA.words.length;
+  document.getElementById("count").textContent = allWords.length;
+  if (multi) document.getElementById("hint").insertBefore(document.createTextNode("단어장 " + groups.length + "개 · "), document.getElementById("hint").firstChild);
   document.getElementById("sampleChip").hidden = !DATA.sample;
   if (DATA.cls) document.getElementById("cls").textContent = DATA.cls + " 영어 단어";
 
@@ -205,7 +217,8 @@ const DATA = /*__WORDBOOK_DATA__*/null;
       a.href = p.href;
       a.innerHTML = '<span class="pt"></span><span class="pn"></span><span class="go" aria-hidden="true">›</span>';
       a.querySelector(".pt").textContent = p.title;
-      a.querySelector(".pn").textContent = "단어 " + p.n + "개";
+      const dm = /(\d{4})-(\d{2})-(\d{2})/.exec(p.date || p.href || "");
+      a.querySelector(".pn").textContent = (dm ? (+dm[2]) + "월 " + (+dm[3]) + "일 · " : "") + "단어 " + p.n + "개";
       li.appendChild(a); ol.appendChild(li);
     });
     document.getElementById("past").hidden = false;
@@ -223,7 +236,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   function urlFor(i, key = "normal") {
     const id = i + ":" + key;
     if (urls[id]) return urls[id];
-    const b64 = DATA.words[i].a[key];
+    const b64 = allWords[i].a[key];
     let u;
     try {
       const bin = atob(b64), arr = new Uint8Array(bin.length);
@@ -238,23 +251,40 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   player.preload = "auto";
   let current = -1, queue = null, gapTimer = null;
 
-  const rows = DATA.words.map((w, i) => {
-    const li = document.createElement("li");
-    const btn = document.createElement("button");
-    btn.type = "button"; btn.className = "row"; btn.id = "word-" + (i + 1);
-    btn.setAttribute("aria-label", w.w + ", " + w.m + ", 발음 듣기");
-    btn.innerHTML =
-      '<span class="num" aria-hidden="true"></span>' +
-      '<span class="txt"><span class="w" lang="en"></span><span class="m"></span></span>' +
-      '<span class="spk" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-      '<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="none"/>' +
-      '<path class="wv wv1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="wv wv2" d="M18.3 6.5a7.5 7.5 0 0 1 0 11"/></svg></span>';
-    btn.querySelector(".num").textContent = i + 1;
-    btn.querySelector(".w").textContent = w.w;
-    btn.querySelector(".m").textContent = w.m;
-    btn.addEventListener("click", () => { stopQueue(); play(i); });
-    li.appendChild(btn); list.appendChild(li);
-    return btn;
+  const rows = [];
+  groups.forEach((g, gi) => {
+    const ol = document.createElement("ol");
+    ol.className = "sheet";
+    if (multi) {
+      const sec = document.createElement("section");
+      sec.className = "group";
+      const h2 = document.createElement("h2");
+      h2.className = "gtitle";
+      h2.innerHTML = '<span class="gn"></span><span class="gt"></span><span class="gc"></span>';
+      h2.querySelector(".gn").textContent = gi + 1;
+      h2.querySelector(".gt").textContent = g.title || "단어장";
+      h2.querySelector(".gc").textContent = "단어 " + g.words.length + "개";
+      sec.appendChild(h2); sec.appendChild(ol); listsEl.appendChild(sec);
+    } else listsEl.appendChild(ol);
+    g.words.forEach((w, wi) => {
+      const i = rows.length;
+      const li = document.createElement("li");
+      const btn = document.createElement("button");
+      btn.type = "button"; btn.className = "row"; btn.id = "word-" + (i + 1);
+      btn.setAttribute("aria-label", w.w + ", " + w.m + ", 발음 듣기");
+      btn.innerHTML =
+        '<span class="num" aria-hidden="true"></span>' +
+        '<span class="txt"><span class="w" lang="en"></span><span class="m"></span></span>' +
+        '<span class="spk" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M4 9.5h3.2L12 5.5v13l-4.8-4H4z" fill="currentColor" stroke="none"/>' +
+        '<path class="wv wv1" d="M15.5 9a4 4 0 0 1 0 6"/><path class="wv wv2" d="M18.3 6.5a7.5 7.5 0 0 1 0 11"/></svg></span>';
+      btn.querySelector(".num").textContent = wi + 1;
+      btn.querySelector(".w").textContent = w.w;
+      btn.querySelector(".m").textContent = w.m;
+      btn.addEventListener("click", () => { stopQueue(); play(i); });
+      li.appendChild(btn); ol.appendChild(li);
+      rows.push(btn);
+    });
   });
 
   function mark(i, on) { if (rows[i]) { rows[i].classList.toggle("playing", on); if (on) rows[i].classList.add("done"); } }

@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=8";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=8";
-import { displayIpa } from "./g2p.js?v=8";
-import * as A from "./audio.js?v=8";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=9";
+import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=9";
+import { displayIpa } from "./g2p.js?v=9";
+import * as A from "./audio.js?v=9";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -27,6 +27,9 @@ function h(tag, attrs = {}, ...kids) {
 const engine = new Engine();
 const pages = new Pages("app/");
 let gh = null, classes = [], items = [], busy = false, engineReady = false, titleTouched = false, classInfo = { code: null, entries: [] };
+// '지난 단어장 고치기'로 불러온(또는 방금 올린) 단어장: 다시 올리면 이 단어장을 고친다
+let editing = null; // { code, href, date }
+const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
 init().catch(e => console.error(e));
@@ -45,7 +48,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=8");
+    await engine.loadDict("app/dict-us.json?v=9");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -96,17 +99,14 @@ async function onClassChange() {
   let html = null;
   try { html = gh ? await gh.getText(`${c.code}.html`) : await (await fetch(`${c.code}.html`, { cache: "no-cache" })).text(); } catch (e) {}
   if (classInfo.code !== c.code) return;
-  const d = readData(html);
-  if (d && d.cls_code === c.code) {
-    classInfo.entries = [{ href: `${c.code}-${d.date}.html`, title: d.title, date: d.date }, ...(d.past || []).map(p => ({ ...p, date: (p.href.match(/\d{4}-\d{2}-\d{2}/) || [""])[0] }))];
-  }
+  classInfo.entries = pages.entriesOf(c, html);
   if (classInfo.entries.length) {
-    $("prevSel").replaceChildren(...classInfo.entries.map(e => h("option", { value: e.href }, e.title)));
+    $("prevSel").replaceChildren(...classInfo.entries.map(e => h("option", { value: e.href }, `${dayLabel(e.date)} · ${e.title}`)));
     $("prevBox").hidden = false;
   }
 }
 
-$("cls").addEventListener("change", () => { saveDraft(); onClassChange(); clearDone(); });
+$("cls").addEventListener("change", () => { editing = null; saveDraft(); onClassChange(); clearDone(); });
 $("date").addEventListener("change", () => { if (!titleTouched) $("title").value = autoTitle($("date").value); saveDraft(); clearDone(); });
 $("title").addEventListener("input", () => { titleTouched = true; saveDraft(); });
 $("words").addEventListener("input", saveDraft);
@@ -118,6 +118,7 @@ $("prevLoad").addEventListener("click", async () => {
     const d = readData(html); if (!d) throw new Error("단어장을 읽지 못했어요");
     $("date").value = d.date; $("title").value = d.title; titleTouched = true;
     $("words").value = d.words.map(w => `${w.w} ${w.m}`).join("\n");
+    editing = { code: curClass().code, href, date: d.date };
     saveDraft(); clearDone();
     $("words").focus();
   } catch (e) { showErr(e.message); }
@@ -335,11 +336,11 @@ function ready() {
   return true;
 }
 
-$("preview").addEventListener("click", () => {
+$("preview").addEventListener("click", async () => {
   if (!ready()) return;
   const c = curClass();
-  const files = pages.buildSetFiles(c, currentSet(), null);
-  const url = URL.createObjectURL(new Blob([files[files._file]], { type: "text/html" }));
+  const r = await pages.buildSetFiles(c, currentSet(), null);
+  const url = URL.createObjectURL(new Blob([r.files[r.file]], { type: "text/html" }));
   const w = window.open(url, "_blank");
   if (!w) showErr("새 탭이 막혔어요. 브라우저 주소창 오른쪽의 팝업 차단 표시를 눌러 이 사이트를 허용해 주세요.");
 });
@@ -353,17 +354,21 @@ async function publish(confirmed = {}) {
   const c = curClass(), date = $("date").value;
   const warn = items.filter(it => state(it) === "warn").length;
   if (warn && !confirmed.warn) return askConfirm(`살펴볼 단어가 ${warn}개 있어요. 그래도 올릴까요?`, () => publish({ ...confirmed, warn: true }));
-  if (classInfo.code === c.code && classInfo.entries.some(e => e.date === date) && !confirmed.overwrite) {
-    return askConfirm(`${c.name}에 이미 ${autoTitle(date).replace(" 영어 단어", "")} 단어장이 있어요. 새 것으로 바꿀까요?`, () => publish({ ...confirmed, overwrite: true }));
+  const title = $("title").value.trim() || autoTitle(date);
+  const editingThis = editing && editing.code === c.code && editing.date === date;
+  // 같은 날짜에 제목이 같은 단어장이 있으면 바꿀지 묻는다 (제목이 다르면 새 단어장으로 추가)
+  if (!editingThis && classInfo.code === c.code && classInfo.entries.some(e => e.date === date && e.title === title) && !confirmed.overwrite) {
+    return askConfirm(`${c.name}에 ${dayLabel(date)} “${title}” 단어장이 이미 있어요. 새 것으로 바꿀까요? (다른 단어장으로 추가하려면 제목을 바꿔 주세요)`, () => publish({ ...confirmed, overwrite: true }));
   }
   busy = true; setBusy(true); $("publish").textContent = "올리는 중…";
   try {
     const set = currentSet();
     const cur = await gh.getText(`${c.code}.html`);
-    const files = pages.buildSetFiles(c, set, cur);
-    const file = files._file; delete files._file;
-    await gh.commit(files, `${c.name} ${set.title} 올림 (단어장 앱)`);
-    showDone(c, set, file);
+    const existing = await gh.listRoot();
+    const r = await pages.buildSetFiles(c, set, cur, { replaceHref: editingThis ? editing.href : null, getData: href => gh.getText(href), existing });
+    await gh.commit(r.files, `${c.name} ${set.title} ${r.replacing ? "고침" : "올림"} (단어장 앱)`);
+    editing = null; // 올린 뒤에는 새로 시작 (제목을 바꿔 다시 올리면 새 단어장으로 추가, 같은 제목이면 바꿀지 물음)
+    showDone(c, set, r);
     onClassChange();
   } catch (e) {
     console.error(e); showErr("올리지 못했어요: " + (e.message || e));
@@ -378,15 +383,16 @@ function askConfirm(msg, yes) {
   box.hidden = false;
 }
 
-function showDone(c, set, file) {
-  const classUrl = SITE + c.code + ".html", dayUrl = SITE + file;
+function showDone(c, set, r) {
+  const classUrl = SITE + c.code + ".html", dayUrl = SITE + r.file;
   // 카톡 공지 문구 (선생님 지정 문구, 2026-10-30 수정)
   const msg = `다나쌤 다음 단어 시험입니다.\n아래 링크에 접속해서 발음을 들어보며 공부하세요.\n${classUrl}`;
   const card = $("doneCard");
   card.replaceChildren(
-    h("p", {}, h("b", {}, `${c.name}에 올렸어요.`), " 1~2분 뒤 학생 주소에 나와요."),
+    h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " 1~2분 뒤 학생 주소에 나와요.",
+      r.sameDayCount > 1 ? ` ${dayLabel(set.date)} 단어장 ${r.sameDayCount}개가 반 주소에 차례로 나와요.` : ""),
     h("div", { class: "copyrow" }, "반 주소 ", h("code", {}, classUrl), copyBtn(classUrl, "주소 복사")),
-    h("div", { class: "copyrow" }, "오늘 단어장 ", h("code", {}, dayUrl)),
+    h("div", { class: "copyrow" }, "이 단어장만 ", h("code", {}, dayUrl)),
     h("div", { class: "copyrow" }, copyBtn(msg, "카톡 공지 문구 복사"),
       h("button", { class: "btn ghost small", type: "button", onclick: resetForNext }, "다음 단어장 만들기")));
   card.hidden = false;
@@ -402,6 +408,7 @@ function copyBtn(text, label) {
 }
 function clearDone() { $("doneCard").hidden = true; }
 function resetForNext() {
+  editing = null;
   items = []; $("list").replaceChildren(); $("resultCard").hidden = true; $("dock").hidden = true; clearDone();
   $("words").value = ""; titleTouched = false; $("title").value = autoTitle($("date").value); saveDraft();
   window.scrollTo({ top: 0, behavior: "smooth" }); $("words").focus();
@@ -487,7 +494,7 @@ async function renameClass(c, newName) {
     if (!target) throw new Error("반 목록에서 이 반을 찾지 못했어요. 새로고침해 주세요.");
     const oldName = target.name; target.name = newName;
     const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
-    const re = new RegExp(`^${c.code}-\\d{4}-\\d{2}-\\d{2}\\.html$`);
+    const re = datedRe(c.code);
     for (const name of (await gh.listRoot()).filter(n => re.test(n))) {
       const d = readData(await gh.getText(name)); if (!d) continue;
       d.cls = newName;
@@ -495,7 +502,7 @@ async function renameClass(c, newName) {
     }
     const cd = readData(await gh.getText(`${c.code}.html`));
     files[`${c.code}.html`] = cd && cd.cls_code === c.code
-      ? pages.studentPage({ ...cd, cls: newName }, { title: `${newName} 영어 단어장`, desc: `최신: ${cd.title} · 단어 ${cd.words.length}개`, url: SITE + c.code + ".html" })
+      ? pages.classPage(target, cd.date, setsOf(cd, c.code), (cd.past || []).map(p => ({ date: (p.href.match(/\d{4}-\d{2}-\d{2}/) || [""])[0], ...p })))
       : pages.emptyClassPage(target);
     await gh.commit(files, `반 이름 바꿈: ${oldName} → ${newName} (단어장 앱)`);
     await loadClasses(); onClassChange();
@@ -516,7 +523,7 @@ async function changeCode(c, code) {
     // 새 주소 자리에 파일이 있으면: 이 반이 예전에 쓰던 주소(지금 이 반으로 넘겨 주는 안내 페이지)일 때만 다시 쓸 수 있다.
     // 다른 반으로 넘겨 주는 주소를 가져오면 그 반 학생들의 옛 링크가 엉뚱한 반으로 열리기 때문.
     const pointsHere = html => !!html && new RegExp(`name="wp-redirect" content="${c.code}[.-]`).test(html);
-    const clash = all.filter(n => n === `${code}.html` || new RegExp(`^${code}-\\d{4}-\\d{2}-\\d{2}\\.html$`).test(n));
+    const clash = all.filter(n => n === `${code}.html` || datedRe(code).test(n));
     for (const n of clash) if (!pointsHere(await gh.getText(n))) return classMsg(`${code}.html 은(는) 이미 쓰였거나 예전에 다른 반이 쓰던 주소예요. 옛 링크가 헷갈리지 않도록 다른 코드를 골라 주세요.`, false);
 
     const reg = JSON.parse(await gh.getText("classes.json"));
@@ -524,12 +531,13 @@ async function changeCode(c, code) {
     if (!target) throw new Error("반 목록에서 이 반을 찾지 못했어요. 새로고침해 주세요.");
     const oldCode = target.code; target.code = code;
     const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
-    const re = new RegExp(`^${oldCode}-(\\d{4}-\\d{2}-\\d{2})\\.html$`);
+    const re = datedRe(oldCode);
     const moved = [];
+    const renamed = href => href.replace(new RegExp(`^${oldCode}-`), `${code}-`);
     for (const name of all.filter(n => re.test(n))) {
       const html = await gh.getText(name), d = readData(html);
       if (!d) continue; // 이미 안내 페이지
-      const date = name.match(re)[1], nn = `${code}-${date}.html`;
+      const nn = renamed(name);
       d.cls_code = code; d.home = `${code}.html`;
       files[nn] = pages.studentPage(d, { title: `${target.name} ${d.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${d.words.length}개`, url: SITE + nn });
       files[name] = pages.redirectPage(nn);
@@ -537,9 +545,9 @@ async function changeCode(c, code) {
     }
     const cd = readData(await gh.getText(`${oldCode}.html`));
     if (cd && cd.cls_code === oldCode) {
-      cd.cls_code = code;
-      cd.past = (cd.past || []).map(p => ({ ...p, href: p.href.replace(new RegExp(`^${oldCode}-`), `${code}-`) }));
-      files[`${code}.html`] = pages.studentPage(cd, { title: `${target.name} 영어 단어장`, desc: `최신: ${cd.title} · 단어 ${cd.words.length}개`, url: SITE + code + ".html" });
+      const sets = setsOf(cd, oldCode).map(st => ({ ...st, href: renamed(st.href) }));
+      const past = (cd.past || []).map(p => ({ date: (p.href.match(/\d{4}-\d{2}-\d{2}/) || [""])[0], ...p, href: renamed(p.href) }));
+      files[`${code}.html`] = pages.classPage(target, cd.date, sets, past);
     } else {
       files[`${code}.html`] = pages.emptyClassPage(target);
     }
@@ -593,7 +601,7 @@ $("addClass").addEventListener("click", async () => {
     const existing = readData(existingHtml);
     // 예전에 빼 둔 반을 같은 코드로 다시 추가하면 그 반 단어장을 그대로 잇는다 (이름만 새로)
     files[`${code}.html`] = existing && existing.cls_code === code
-      ? pages.studentPage({ ...existing, cls: name }, { title: `${name} 영어 단어장`, desc: `최신: ${existing.title} · 단어 ${existing.words.length}개`, url: SITE + code + ".html" })
+      ? pages.classPage(nc, existing.date, setsOf(existing, code), existing.past || [])
       : pages.emptyClassPage(nc);
     await gh.commit(files, `${name} 반 추가 (단어장 앱)`);
     classes = reg.classes;
