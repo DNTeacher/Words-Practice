@@ -128,7 +128,11 @@ dialog .inline input { flex: 1 1 220px; border: 1px solid var(--rule); backgroun
 .status { font-size: 14px; margin-top: 8px; }
 .status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
 .classes { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
-.classes li { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; }
+.classes li { display: grid; grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 14px; padding: 4px 0; border-bottom: 1px solid var(--rule); }
+.classes li .acts { display: flex; gap: 2px; flex-wrap: wrap; justify-content: flex-end; }
+.classes li input { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 5px 8px; min-width: 0; width: 100%; }
+.classes li .ask { grid-column: 1 / 3; color: var(--warn); font-weight: 500; }
+@media (max-width: 640px) { .classes li { grid-template-columns: 1fr; } .classes li .acts { justify-content: flex-start; } .classes li .ask { grid-column: auto; } }
 .classes li code { color: var(--ink-soft); font-size: 12.5px; overflow-wrap: anywhere; }
 a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -231,6 +235,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=5"></script>
+<script type="module" src="app/app.js?v=6"></script>
 </body>
 </html>

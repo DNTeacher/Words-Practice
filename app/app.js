@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=5";
-import { Pages, GitHub, SITE, readData } from "./site.js?v=5";
-import { displayIpa } from "./g2p.js?v=5";
-import * as A from "./audio.js?v=5";
+import { Engine, SPEEDS, itemState, plain } from "./engine.js?v=6";
+import { Pages, GitHub, SITE, readData } from "./site.js?v=6";
+import { displayIpa } from "./g2p.js?v=6";
+import * as A from "./audio.js?v=6";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -45,7 +45,7 @@ async function init() {
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=5");
+    await engine.loadDict("app/dict-us.json?v=6");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -431,9 +431,79 @@ $("clearToken").addEventListener("click", () => {
 });
 
 function renderClassList() {
-  $("classList").replaceChildren(...classes.map(c => h("li", {},
-    h("b", {}, c.name), h("code", {}, `${SITE}${c.code}.html`),
-    h("button", { class: "btn quiet small", type: "button", onclick: () => saveQr(c) }, "QR 저장"))));
+  $("classList").replaceChildren(...classes.map(c => {
+    const li = h("li", {});
+    const view = () => li.replaceChildren(
+      h("b", {}, c.name), h("code", {}, `${SITE}${c.code}.html`),
+      h("span", { class: "acts" },
+        h("button", { class: "btn quiet small", type: "button", onclick: edit }, "이름 바꾸기"),
+        h("button", { class: "btn quiet small", type: "button", onclick: () => saveQr(c) }, "QR 저장"),
+        h("button", { class: "btn quiet small", type: "button", onclick: askRemove }, "목록에서 빼기")));
+    const edit = () => {
+      const inp = h("input", { type: "text", value: c.name, "aria-label": `${c.name} 새 이름` });
+      li.replaceChildren(inp, h("code", {}, `${SITE}${c.code}.html`), h("span", { class: "acts" },
+        h("button", { class: "btn small", type: "button", onclick: () => renameClass(c, inp.value.trim()) }, "바꾸기"),
+        h("button", { class: "btn quiet small", type: "button", onclick: view }, "취소")));
+      inp.focus(); inp.select();
+      inp.addEventListener("keydown", e => { if (e.key === "Enter") renameClass(c, inp.value.trim()); if (e.key === "Escape") view(); });
+    };
+    const askRemove = () => li.replaceChildren(
+      h("span", { class: "ask" }, `${c.name}을(를) 반 목록에서 뺄까요? 이미 올린 단어장과 공지한 주소는 그대로 열려요.`),
+      h("span", { class: "acts" },
+        h("button", { class: "btn small", type: "button", onclick: () => removeClass(c) }, "빼기"),
+        h("button", { class: "btn quiet small", type: "button", onclick: view }, "취소")));
+    view();
+    return li;
+  }));
+}
+
+function classMsg(msg, ok, extra) {
+  const st = $("classStatus");
+  st.replaceChildren(msg, ...(extra ? [" ", extra] : []));
+  st.className = "status " + (ok === true ? "ok" : ok === false ? "bad" : "");
+}
+
+// 반 이름 바꾸기: 주소(코드)는 그대로, 반 목록·첫 화면·그 반의 모든 단어장 페이지 이름을 바꾼다.
+async function renameClass(c, newName) {
+  if (!gh) return classMsg("이름을 바꾸려면 먼저 위에서 GitHub 열쇠를 넣어 주세요.", false);
+  if (!newName) return classMsg("새 이름을 적어 주세요.", false);
+  if (newName === c.name) return renderClassList();
+  if (classes.some(x => x.name === newName && x.code !== c.code)) return classMsg("이미 있는 반 이름이에요.", false);
+  classMsg(`${c.name} → ${newName} 바꾸는 중…`);
+  try {
+    const reg = JSON.parse(await gh.getText("classes.json"));
+    const target = reg.classes.find(x => x.code === c.code);
+    if (!target) throw new Error("반 목록에서 이 반을 찾지 못했어요. 새로고침해 주세요.");
+    const oldName = target.name; target.name = newName;
+    const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
+    const re = new RegExp(`^${c.code}-\\d{4}-\\d{2}-\\d{2}\\.html$`);
+    for (const name of (await gh.listRoot()).filter(n => re.test(n))) {
+      const d = readData(await gh.getText(name)); if (!d) continue;
+      d.cls = newName;
+      files[name] = pages.studentPage(d, { title: `${newName} ${d.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${d.words.length}개`, url: SITE + name });
+    }
+    const cd = readData(await gh.getText(`${c.code}.html`));
+    files[`${c.code}.html`] = cd && cd.cls_code === c.code
+      ? pages.studentPage({ ...cd, cls: newName }, { title: `${newName} 영어 단어장`, desc: `최신: ${cd.title} · 단어 ${cd.words.length}개`, url: SITE + c.code + ".html" })
+      : pages.emptyClassPage(target);
+    await gh.commit(files, `반 이름 바꿈: ${oldName} → ${newName} (단어장 앱)`);
+    await loadClasses(); onClassChange();
+    classMsg(`${newName}(으)로 바꿨어요. 1~2분 뒤 학생 페이지에도 반영돼요. 주소는 그대로예요.`, true,
+      h("button", { class: "btn small", type: "button", onclick: () => saveQr(target) }, "새 이름으로 QR 저장"));
+  } catch (e) { console.error(e); classMsg("이름을 바꾸지 못했어요: " + (e.message || e), false); }
+}
+
+// 반 목록에서 빼기: 반 목록과 첫 화면에서만 뺀다 (페이지는 지우지 않아 예전 주소도 계속 열림).
+async function removeClass(c) {
+  if (!gh) return classMsg("반을 빼려면 먼저 위에서 GitHub 열쇠를 넣어 주세요.", false);
+  classMsg(`${c.name} 빼는 중…`);
+  try {
+    const reg = JSON.parse(await gh.getText("classes.json"));
+    reg.classes = reg.classes.filter(x => x.code !== c.code);
+    await gh.commit({ "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) }, `${c.name} 반 목록에서 뺌 (단어장 앱)`);
+    await loadClasses(); onClassChange();
+    classMsg(`${c.name}을(를) 반 목록에서 뺐어요. 같은 이름으로 다시 추가하려면 아래 '반 추가'에서 주소 코드 ${c.code} 로 추가하면 예전 단어장이 다시 이어져요.`, true);
+  } catch (e) { console.error(e); classMsg("반을 빼지 못했어요: " + (e.message || e), false); }
 }
 
 $("newName").addEventListener("input", () => {
@@ -456,11 +526,13 @@ $("addClass").addEventListener("click", async () => {
     if (reg.classes.some(c => c.code === code)) return bad("이미 있는 주소 코드예요.");
     const nc = { code, name };
     reg.classes.push(nc);
-    await gh.commit({
-      "classes.json": JSON.stringify(reg, null, 2) + "\n",
-      "index.html": pages.rootIndex(reg.classes),
-      [`${code}.html`]: pages.emptyClassPage(nc),
-    }, `${name} 반 추가 (단어장 앱)`);
+    const files = { "classes.json": JSON.stringify(reg, null, 2) + "\n", "index.html": pages.rootIndex(reg.classes) };
+    const existing = readData(await gh.getText(`${code}.html`));
+    // 예전에 빼 둔 반을 같은 코드로 다시 추가하면 그 반 단어장을 그대로 잇는다 (이름만 새로)
+    files[`${code}.html`] = existing && existing.cls_code === code
+      ? pages.studentPage({ ...existing, cls: name }, { title: `${name} 영어 단어장`, desc: `최신: ${existing.title} · 단어 ${existing.words.length}개`, url: SITE + code + ".html" })
+      : pages.emptyClassPage(nc);
+    await gh.commit(files, `${name} 반 추가 (단어장 앱)`);
     classes = reg.classes;
     await loadClasses();
     st.replaceChildren(`${name}을(를) 추가했어요. 1~2분 뒤 열려요: `, h("code", {}, `${SITE}${code}.html`), " ",
