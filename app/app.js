@@ -1,8 +1,8 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=10";
-import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=10";
-import { displayIpa } from "./g2p.js?v=10";
-import * as A from "./audio.js?v=10";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=11";
+import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=11";
+import { displayIpa } from "./g2p.js?v=11";
+import * as A from "./audio.js?v=11";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -28,7 +28,7 @@ const engine = new Engine();
 const pages = new Pages("app/");
 let gh = null, classes = [], items = [], busy = false, engineReady = false, titleTouched = false, classInfo = { code: null, entries: [] };
 // '지난 단어장 고치기'로 불러온(또는 방금 올린) 단어장: 다시 올리면 이 단어장을 고친다
-let editing = null; // { code, href, date }
+let editing = null; // { code, href, date, title } "지난 단어장 고치기"로 불러온 단어장 (setEditing 으로만 바꾼다)
 const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
@@ -49,7 +49,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=10");
+    await engine.loadDict("app/dict-us.json?v=11");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -114,8 +114,22 @@ async function onClassChange() {
   }
 }
 
-$("cls").addEventListener("change", () => { editing = null; saveDraft(); onClassChange(); clearDone(); });
-$("date").addEventListener("change", () => { if (!titleTouched) $("title").value = autoTitle($("date").value); saveDraft(); clearDone(); });
+$("cls").addEventListener("change", () => { setEditing(null); saveDraft(); onClassChange(); clearDone(); });
+$("date").addEventListener("change", () => {
+  if (editing && editing.date !== $("date").value) setEditing(null);
+  if (!titleTouched) $("title").value = autoTitle($("date").value); saveDraft(); clearDone();
+});
+
+// 불러온 단어장을 고치는 중이면 눈에 보이게 (올리면 그 단어장이 바뀐다는 것을 알 수 있게)
+function setEditing(v) {
+  editing = v;
+  const bar = $("editBar");
+  if (!v) { bar.hidden = true; bar.replaceChildren(); return; }
+  bar.replaceChildren(
+    h("span", {}, `${dayLabel(v.date)} “${v.title}” 단어장을 고치는 중이에요. 올리면 이 단어장이 새 내용으로 바뀌어요.`),
+    h("button", { class: "btn ghost small", type: "button", onclick: () => setEditing(null) }, "고치지 않고 새 단어장으로 만들기"));
+  bar.hidden = false;
+}
 $("title").addEventListener("input", () => { titleTouched = true; saveDraft(); });
 $("words").addEventListener("input", saveDraft);
 
@@ -126,7 +140,7 @@ $("prevLoad").addEventListener("click", async () => {
     const d = readData(html); if (!d) throw new Error("단어장을 읽지 못했어요");
     $("date").value = d.date; $("title").value = d.title; titleTouched = true;
     $("words").value = d.words.map(w => `${w.w} ${w.m}`).join("\n");
-    editing = { code: curClass().code, href, date: d.date };
+    setEditing({ code: curClass().code, href, date: d.date, title: d.title });
     saveDraft(); clearDone();
     $("words").focus();
   } catch (e) { showErr(e.message); }
@@ -389,7 +403,15 @@ async function publish(confirmed = {}) {
   const warn = items.filter(it => state(it) === "warn").length;
   if (warn && !confirmed.warn) return askConfirm(`살펴볼 단어가 ${warn}개 있어요. 그래도 올릴까요?`, () => publish({ ...confirmed, warn: true }));
   const title = $("title").value.trim() || autoTitle(date);
-  const editingThis = editing && editing.code === c.code && editing.date === date;
+  let editingThis = editing && editing.code === c.code && editing.date === date;
+  // 불러온 단어장의 제목을 바꿨으면, 그 단어장을 바꿀지 새로 추가할지 묻는다
+  // (2026-11-01: Day 6 을 불러온 화면에 Day 7 을 넣어 올렸더니 Day 6 이 사라진 일이 있었음)
+  if (editingThis && title !== editing.title && !confirmed.mode) {
+    return askChoice(`불러온 “${editing.title}” 단어장의 제목을 “${title}”(으)로 바꿨어요. 어떻게 올릴까요?`, [
+      [`“${editing.title}” 그대로 두고 새로 추가`, () => publish({ ...confirmed, mode: "add" })],
+      [`“${editing.title}” 대신 바꾸기`, () => publish({ ...confirmed, mode: "replace" }), true]]);
+  }
+  if (confirmed.mode === "add") editingThis = false;
   // 같은 날짜에 제목이 같은 단어장이 있으면 바꿀지 묻는다 (제목이 다르면 새 단어장으로 추가)
   if (!editingThis && classInfo.code === c.code && classInfo.entries.some(e => e.date === date && e.title === title) && !confirmed.overwrite) {
     return askConfirm(`${c.name}에 ${dayLabel(date)} “${title}” 단어장이 이미 있어요. 새 것으로 바꿀까요? (다른 단어장으로 추가하려면 제목을 바꿔 주세요)`, () => publish({ ...confirmed, overwrite: true }));
@@ -404,7 +426,7 @@ async function publish(confirmed = {}) {
     if (fx) r.files["app/fixes.json"] = JSON.stringify(fx, null, 2) + "\n";
     await gh.commit(r.files, `${c.name} ${set.title} ${r.replacing ? "고침" : "올림"} (단어장 앱)`);
     if (fx) engine.fixes = fx;
-    editing = null; // 올린 뒤에는 새로 시작 (제목을 바꿔 다시 올리면 새 단어장으로 추가, 같은 제목이면 바꿀지 물음)
+    setEditing(null); // 올린 뒤에는 새로 시작 (제목을 바꿔 다시 올리면 새 단어장으로 추가, 같은 제목이면 바꿀지 물음)
     showDone(c, set, r);
     onClassChange();
   } catch (e) {
@@ -425,10 +447,12 @@ async function collectFixes() {
   return JSON.stringify(fx) === JSON.stringify(base) ? null : fx;
 }
 
-function askConfirm(msg, yes) {
+function askConfirm(msg, yes) { askChoice(msg, [["올리기", yes]]); }
+// choices: [[버튼 글자, 누르면 할 일, 덜 눈에 띄게?], ...] + 취소
+function askChoice(msg, choices) {
   const box = $("confirm");
   box.replaceChildren(msg,
-    h("button", { class: "btn small", type: "button", onclick: () => { box.hidden = true; yes(); } }, "올리기"),
+    ...choices.map(([label, fn, quiet]) => h("button", { class: quiet ? "btn small ghost" : "btn small", type: "button", onclick: () => { box.hidden = true; fn(); } }, label)),
     h("button", { class: "btn small quiet", type: "button", onclick: () => { box.hidden = true; } }, "취소"));
   box.hidden = false;
 }
@@ -458,7 +482,7 @@ function copyBtn(text, label) {
 }
 function clearDone() { $("doneCard").hidden = true; }
 function resetForNext() {
-  editing = null;
+  setEditing(null);
   items = []; $("list").replaceChildren(); $("resultCard").hidden = true; $("dock").hidden = true; clearDone();
   $("words").value = ""; titleTouched = false; $("title").value = autoTitle($("date").value); saveDraft();
   window.scrollTo({ top: 0, behavior: "smooth" }); $("words").focus();

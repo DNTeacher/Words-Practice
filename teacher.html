@@ -109,7 +109,8 @@ textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px s
 .dock .sum { font-size: 14px; color: var(--ink-soft); }
 .dock .sum b { color: var(--ink); font-variant-numeric: tabular-nums; }
 .dock .btns { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
-.confirm { display: flex; gap: 8px; align-items: center; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
+.editbar { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 500; }
+.confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
 .done { border-left: 4px solid var(--ok); }
 .done p { margin: 0 0 8px; }
 .copyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
@@ -170,6 +171,7 @@ a { color: var(--accent); }
       <select id="prevSel" aria-label="불러올 지난 단어장"></select>
       <button class="btn ghost small" id="prevLoad" type="button">불러오기</button>
     </div>
+    <div class="editbar" id="editBar" hidden></div>
   </section>
 
   <section class="card" aria-labelledby="s2">
@@ -237,6 +239,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=10"></script>
+<script type="module" src="app/app.js?v=11"></script>
 </body>
 </html>
