@@ -2,8 +2,8 @@
 // 단어마다 음성을 만들고, 음성인식으로 다시 받아적어 같은 소리인지 확인한다.
 // 무거운 AI 계산은 worker.js(따로 도는 일꾼)에서 한다 → 화면이 멈추지 않는다 (2026-10-30, 크롬 '페이지 응답 없음' 해결).
 
-import { Lexicon, guessVariant, espeakToKokoro, soundKey } from "./g2p.js?v=11";
-import * as A from "./audio.js?v=11";
+import { Lexicon, guessVariant, espeakToKokoro, soundKey, speakable } from "./g2p.js?v=12";
+import * as A from "./audio.js?v=12";
 
 const PHONEMIZER = "https://cdn.jsdelivr.net/npm/phonemizer@1.2.1/+esm";
 export const VOICE = "af_heart";
@@ -62,7 +62,7 @@ export class Engine {
 
   // AI 모델 불러오기 (일꾼 안에서). onProgress(0~1, 설명)
   async loadModels(onProgress = () => {}) {
-    this.worker = new Worker(new URL("./worker.js?v=11", import.meta.url), { type: "module" });
+    this.worker = new Worker(new URL("./worker.js?v=12", import.meta.url), { type: "module" });
     this.worker.onmessage = e => {
       const d = e.data;
       if (d.type === "progress") return onProgress(d.p, d.txt);
@@ -101,17 +101,18 @@ export class Engine {
   // ---------- 단어 준비 ----------
   // 입력 한 줄 → 단어 항목 (발음 결정)
   async prepare(item) {
-    item.variants = this.lex.variants(item.word);
+    const say = speakable(item.word);  // "How about ~ing ?" 같은 표기는 기호를 빼고 읽는다
+    item.variants = this.lex.variants(say);
     if (item.variants) {
-      if (item.choice == null) { item.choice = guessVariant(item.variants, item.meaning); item.guessed = true; }
+      if (item.choice == null) { item.choice = guessVariant(item.variants, item.meaning, item.pos); item.guessed = true; }
       item.ps = item.variants[item.choice].ps;
       item.source = "dict";
     } else {
-      const r = this.lex.phrase(item.word);
+      const r = this.lex.phrase(say);
       if (r.ps) { item.ps = r.ps; item.source = "dict"; }
       else {
         item.missing = r.missing;
-        try { item.ps = await this.espeak(item.word); item.source = "espeak"; }
+        try { item.ps = await this.espeak(say); item.source = "espeak"; }
         catch (e) { console.error(e); item.ps = null; item.source = "none"; }
       }
     }
@@ -122,7 +123,7 @@ export class Engine {
   heardOk(item, heard) {
     const t = tokens(heard);
     if (!t.length) return false;
-    if (t.join(" ") === plain(item.word)) return true;
+    if (t.join(" ") === plain(speakable(item.word))) return true;
     const parts = t.map(w => this.lex.word(w));
     if (parts.some(p => p == null)) return false;
     return soundKey(parts.join("")) === soundKey(item.ps);

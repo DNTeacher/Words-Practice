@@ -149,9 +149,11 @@ export class Pages {
 
 // ---------- GitHub ----------
 export class GitHub {
-  constructor(token, branch = BRANCH) { this.token = token; this.branch = branch; }
+  constructor(token, branch = BRANCH, repo = REPO) { this.token = token; this.branch = branch; this.repo = repo; }
+  // 같은 열쇠로 다른 저장소 (단어장 정리본: Words-Books)
+  other(repo, branch = "main") { return new GitHub(this.token, branch, repo); }
   async api(path, { method = "GET", body, accept } = {}) {
-    const r = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}${path}`, {
+    const r = await fetch(`https://api.github.com/repos/${OWNER}/${this.repo}${path}`, {
       method, cache: "no-store",
       headers: { Authorization: `Bearer ${this.token}`, Accept: accept || "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,

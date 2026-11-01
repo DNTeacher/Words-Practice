@@ -186,7 +186,7 @@ const EXTRA = {
 };
 
 // 한국어 뜻으로 어떤 발음인지 추측한다 (선생님이 바꿀 수 있음).
-export function guessVariant(variants, meaning) {
+export function guessVariant(variants, meaning, pos = null) {
   const m = (meaning || "").trim();
   if (!variants || !variants.length) return 0;
   if (variants[0].keys) {
@@ -199,6 +199,15 @@ export function guessVariant(variants, meaning) {
   else if (/다$/.test(first)) tag = "VERB";
   else if (/(한|운|은|는|인|적인|ㄴ|던|스러운|로운|같은|있는|없는)$/.test(first)) tag = "ADJ";
   else tag = "NOUN";
+  // 단어장에 품사가 하나만 적혀 있으면 그 품사로 (과거형 뜻은 뜻을 따른다). 그 품사 발음이 따로 없으면 기본 발음.
+  // 예: record n. → 기본(ˈrɛkərd), refuse v. → 기본(rɪˈfjuz), tear v. → VERB(tɛr), read v. 읽다 → 기본(rid)
+  const POS_TAG = { n: "NOUN", v: "VERB", adj: "ADJ", adv: "ADV" };
+  if (tag !== "VBD" && pos && pos.length === 1 && POS_TAG[pos[0]]) {
+    const i = variants.findIndex(v => v.tags.includes(POS_TAG[pos[0]]));
+    if (i >= 0) return i;
+    const d = variants.findIndex(v => v.tags.includes("DEFAULT"));
+    if (d >= 0) return d;
+  }
   const order = { VBD: ["VBD", "VBN"], VERB: ["VERB"], ADJ: ["ADJ"], NOUN: ["NOUN"] }[tag];
   for (const t of order) { const i = variants.findIndex(v => v.tags.includes(t)); if (i >= 0) return i; }
   const d = variants.findIndex(v => v.tags.includes("DEFAULT"));
@@ -227,4 +236,14 @@ export function espeakToKokoro(ipa) {
 // 음성인식 결과와 의도한 발음이 같은 소리인지 비교할 때 쓰는 정규화
 export function soundKey(ps) {
   return ps.replace(/[ˈˌ\s]/g, "").replaceAll("ᵊ", "ə").replaceAll("ɾ", "t").replaceAll("ᵻ", "ɪ").replaceAll("ʔ", "t");
+}
+
+// 소리 낼 글자: 단어장 표기의 기호는 빼고 읽는다 (화면에는 적힌 그대로)
+// "How about ~ing ?" → "How about", "there is[are]" → "there is", "blond(e)" → "blond", "It's time to~" → "It's time to",
+// "comedy / comedian" → "comedy, comedian", "can ↔ can't" → "can, can't"
+export function speakable(word) {
+  const w = String(word || "").replace(/[’‘]/g, "'");
+  const s = w.replace(/\[[^\]]*\]/g, " ").replace(/\([^)]*\)/g, " ").replace(/~[A-Za-z]*/g, " ")
+    .replace(/\s*[↔/]\s*/g, ", ").replace(/[?!.]+(?=\s|$)/g, " ").replace(/\s+/g, " ").replace(/^[\s,]+|[\s,]+$/g, "").trim();
+  return /[A-Za-z]/.test(s) ? s : w;
 }

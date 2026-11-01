@@ -1,12 +1,13 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=11";
-import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=11";
-import { displayIpa } from "./g2p.js?v=11";
-import * as A from "./audio.js?v=11";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=12";
+import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=12";
+import { displayIpa } from "./g2p.js?v=12";
+import * as A from "./audio.js?v=12";
+import { Books, resolveRange, rangeHint } from "./books.js?v=12";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
-const LS = { token: "wp-gh-token", draft: "wp-draft" };
+const LS = { token: "wp-gh-token", draft: "wp-draft", range: "wp-last-range" };
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
@@ -29,6 +30,8 @@ const pages = new Pages("app/");
 let gh = null, classes = [], items = [], busy = false, engineReady = false, titleTouched = false, classInfo = { code: null, entries: [] };
 // '지난 단어장 고치기'로 불러온(또는 방금 올린) 단어장: 다시 올리면 이 단어장을 고친다
 let editing = null; // { code, href, date, title } "지난 단어장 고치기"로 불러온 단어장 (setEditing 으로만 바꾼다)
+// 단어장 정리본 (Words-Books): books = 읽기 도구, bookIdx = 반 ↔ 단어장 목록, importedPos = 가져온 단어의 품사 (발음 고르기에 씀)
+let books = null, bookIdx = null, bookIdxErr = null, lastRangeTitle = null, importedPos = new Map();
 const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
@@ -36,10 +39,11 @@ init().catch(e => console.error(e));
 
 async function init() {
   const tok = store.get(LS.token);
-  if (tok) gh = new GitHub(tok);
+  if (tok) { gh = new GitHub(tok); books = new Books(gh); }
   $("tokenBanner").hidden = !!gh;
 
   await loadClasses();
+  loadBookIndex();
   restoreDraft();
   if (!$("date").value) $("date").value = today();
   if (!titleTouched) $("title").value = autoTitle($("date").value);
@@ -49,7 +53,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=11");
+    await engine.loadDict("app/dict-us.json?v=12");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -101,6 +105,7 @@ async function loadClasses() {
 const curClass = () => classes.find(c => c.code === $("cls").value);
 
 async function onClassChange() {
+  renderBookBox();
   const c = curClass(); if (!c) return;
   classInfo = { code: c.code, entries: [] };
   $("prevBox").hidden = true;
@@ -146,9 +151,117 @@ $("prevLoad").addEventListener("click", async () => {
   } catch (e) { showErr(e.message); }
 });
 
+// ---------- 단어장에서 가져오기 (비공개 저장소 Words-Books 의 정리본) ----------
+async function loadBookIndex() {
+  bookIdx = null; bookIdxErr = null; renderBookBox();
+  if (!books) return;
+  try { bookIdx = await books.index(true); } catch (e) { console.error(e); bookIdxErr = e; }
+  renderBookBox(); renderClassList();
+}
+function bookMsg(cls, ...kids) {
+  const m = $("bookMsg"); m.className = "fmsg " + cls; m.replaceChildren(...kids); m.hidden = !kids.length;
+}
+const lastRanges = () => { try { return JSON.parse(store.get(LS.range) || "{}"); } catch (e) { return {}; } };
+function saveLastRange(code, rng) { const o = lastRanges(); o[code] = rng; store.set(LS.range, JSON.stringify(o)); }
+const posKey = (w, m) => `${String(w).replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim().toLowerCase()}\t${String(m).replace(/\s+/g, " ").trim()}`;
+// 받침에 따라 "로/으로" (숫자는 읽는 소리로)
+function ro(word) {
+  const ch = String(word).trim().slice(-1), code = ch.charCodeAt(0);
+  if (code >= 0xAC00 && code <= 0xD7A3) { const jong = (code - 0xAC00) % 28; return jong === 0 || jong === 8 ? "로" : "으로"; }
+  if (/[0-9]/.test(ch)) return "036".includes(ch) ? "으로" : "로";
+  return "로";
+}
+
+function renderBookBox() {
+  const box = $("bookBox"), c = curClass();
+  box.hidden = !c;
+  if (!c) return;
+  $("bookRow").hidden = true; $("bookHint").textContent = ""; bookMsg("info");
+  if (!gh) return bookMsg("info", "설정에서 GitHub 열쇠를 넣으면 정리해 둔 단어장에서 단어를 가져올 수 있어요.");
+  if (bookIdxErr) return bookMsg("bad", "단어장 저장소(Words-Books)를 읽지 못했어요. GitHub 열쇠 설정에 Words-Books 저장소가 들어 있는지 확인해 주세요.");
+  if (!bookIdx) return bookMsg("info", "단어장 목록을 불러오는 중…");
+  const all = bookIdx.books, mine = (bookIdx.classes[c.code] || []).filter(id => all[id]);
+  if (!mine.length) {
+    return bookMsg("info", "이 반에는 연결된 단어장이 없어요. 지금처럼 아래 2번 칸에 단어를 붙여넣으시면 돼요.",
+      h("button", { class: "btn ghost small", type: "button", onclick: openSettings }, "설정에서 단어장 연결하기"));
+  }
+  const others = Object.keys(all).filter(id => !mine.includes(id));
+  $("bookSel").replaceChildren(...mine.map(id => h("option", { value: id }, all[id].book)),
+    ...(others.length ? [h("optgroup", { label: "다른 반 단어장" }, ...others.map(id => h("option", { value: id }, all[id].book)))] : []));
+  $("bookRow").hidden = false;
+  const last = lastRanges()[c.code];
+  $("rangeIn").value = ""; $("rangeIn").placeholder = last ? `지난번: ${last}` : "예: Day 8";
+  updateBookHint();
+}
+async function updateBookHint() {
+  const id = $("bookSel").value; if (!id || !books) return;
+  $("bookHint").textContent = "";
+  try {
+    const b = await books.book(id);
+    if ($("bookSel").value !== id) return;
+    const hint = rangeHint(b);
+    $("bookHint").replaceChildren("있는 범위: ", h("b", {}, hint.have), " · 예: " + hint.examples.join(" · "));
+    const c = curClass();
+    if (c && !lastRanges()[c.code]) $("rangeIn").placeholder = "예: " + hint.examples[0];
+  } catch (e) { $("bookHint").textContent = "단어장을 읽지 못했어요: " + (e.message || e); }
+}
+$("bookSel").addEventListener("change", () => { bookMsg("info"); updateBookHint(); });
+$("bookGet").addEventListener("click", () => importRange());
+$("rangeIn").addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); importRange(); } });
+
+async function importRange(confirmed = false) {
+  const c = curClass(), id = $("bookSel").value, rng = $("rangeIn").value.trim();
+  if (!c || !id || !books) return;
+  if (!rng) return bookMsg("bad", "시험 범위를 적어 주세요. " + ($("rangeIn").placeholder || ""));
+  let book;
+  try { book = await books.book(id); } catch (e) { return bookMsg("bad", "단어장을 읽지 못했어요: " + (e.message || e)); }
+  const r = resolveRange(book, rng);
+  if (r.error) return bookMsg("bad", r.error);
+  if (r.items.length > 60) return bookMsg("bad", `단어가 ${r.items.length}개라 한 번에 만들 수 있는 60개를 넘어요. 범위를 나눠서 가져와 주세요.`);
+  const text = r.items.map(x => `${x.word}\t${x.meaning}`).join("\n"), cur = $("words").value.trim();
+  if (cur && cur !== text && !confirmed) {
+    return bookMsg("info", "2번 칸에 이미 단어가 있어요. 가져온 단어로 바꿀까요?",
+      h("button", { class: "btn small", type: "button", onclick: () => importRange(true) }, "바꾸기"),
+      h("button", { class: "btn quiet small", type: "button", onclick: () => bookMsg("info") }, "취소"));
+  }
+  $("words").value = text;
+  importedPos = new Map(r.items.filter(x => x.pos && x.pos.length).map(x => [posKey(x.word, x.meaning), x.pos]));
+  let titleNote = "";
+  if (!titleTouched || $("title").value === lastRangeTitle) {
+    $("title").value = rng; lastRangeTitle = rng; titleTouched = true;
+    titleNote = ` 제목도 “${rng}”${ro(rng)} 넣었어요.`;
+  }
+  saveLastRange(c.code, rng); saveDraft(); clearDone(); showErr("");
+  bookMsg("ok", `✓ ${rng}에서 단어 ${r.items.length}개를 가져왔어요.${titleNote} 고칠 게 있으면 아래 2번 칸에서 고친 다음 발음 만들기를 눌러 주세요.`);
+}
+
+// 설정 → 반 목록: 반마다 쓰는 단어장
+function bookPicker(c) {
+  if (!gh || !bookIdx) return null;
+  const cur = (bookIdx.classes[c.code] || []).find(id => bookIdx.books[id]) || "";
+  const sel = h("select", { "aria-label": `${c.name} 단어장` }, h("option", { value: "" }, "연결 안 함"),
+    ...Object.entries(bookIdx.books).map(([id, b]) => h("option", { value: id }, b.book)));
+  sel.value = cur;
+  sel.addEventListener("change", () => setClassBook(c, sel.value, sel, cur));
+  return h("span", { class: "book" }, "단어장", sel);
+}
+async function setClassBook(c, id, sel, prev) {
+  sel.disabled = true;
+  const name = id ? bookIdx.books[id].book : "연결 안 함";
+  classMsg(`${c.name} 단어장을 바꾸는 중…`);
+  try {
+    bookIdx = await books.setClassBook(c.code, id, `${c.name} 단어장: ${name} (단어장 앱)`);
+    classMsg(`${c.name}: ${id ? `“${name}”${ro(name)} 바꿨어요.` : "단어장 연결을 끊었어요."}`, true);
+    renderBookBox(); renderClassList();
+  } catch (e) {
+    console.error(e); sel.value = prev; sel.disabled = false;
+    classMsg("단어장을 바꾸지 못했어요: " + (e.message || e), false);
+  }
+}
+
 // ---------- 임시 저장 ----------
 function saveDraft() {
-  store.set(LS.draft, JSON.stringify({ cls: $("cls").value, date: $("date").value, title: $("title").value, titleTouched, text: $("words").value }));
+  store.set(LS.draft, JSON.stringify({ cls: $("cls").value, date: $("date").value, title: $("title").value, titleTouched, text: $("words").value, pos: [...importedPos], rangeTitle: lastRangeTitle }));
 }
 function restoreDraft() {
   try {
@@ -157,6 +270,8 @@ function restoreDraft() {
     if (d.date) $("date").value = d.date;
     titleTouched = !!d.titleTouched; if (d.title) $("title").value = d.title;
     if (d.text) $("words").value = d.text;
+    if (Array.isArray(d.pos)) importedPos = new Map(d.pos);
+    if (d.rangeTitle) lastRangeTitle = d.rangeTitle;
   } catch (e) {}
 }
 
@@ -167,6 +282,10 @@ function parse(text) {
     let line = raw.replace(/ /g, " ").trim();
     if (!line) return;
     line = line.replace(/^(\d+\s*[.)]|[-•·*▪︎])\s*/, "").replace(/[’‘]/g, "'");
+    // 탭으로 나뉜 줄 (단어장에서 가져오기, 엑셀 붙여넣기): 첫 칸이 단어, 나머지가 뜻. "How about ~ing ?" 처럼 기호가 있는 단어도 그대로
+    const cells = line.split("\t").map(x => x.trim()).filter(Boolean);
+    if (cells.length >= 3 && /^\d+[.)]?$/.test(cells[0])) cells.shift();
+    if (cells.length >= 2 && /[A-Za-z]/.test(cells[0])) { out.push({ word: cells[0].replace(/\s+/g, " "), meaning: cells.slice(1).join(" ") }); return; }
     // 앞쪽의 영어 부분이 단어, 그 뒤 전부가 뜻 (숫자·괄호·영어 설명이 섞여도 됨)
     const m = line.match(/^[A-Za-z][A-Za-z' .\-]*/);
     if (!m) { errs.push(`${i + 1}번째 줄 "${raw.trim()}": 줄 맨 앞에서 영어 단어를 찾지 못했어요.`); return; }
@@ -193,6 +312,7 @@ async function makeAll() {
   if (parsed.length > 60) { showErr("한 번에 60개까지 만들 수 있어요."); return; }
   clearDone();
   busy = true; setBusy(true);
+  for (const it of parsed) { const p = importedPos.get(posKey(it.word, it.meaning)); if (p && p.length) it.pos = p; }
   items = parsed;
   try {
     for (const it of items) await engine.prepare(it);
@@ -502,12 +622,14 @@ $("saveToken").addEventListener("click", async () => {
   const g = new GitHub(t);
   let r; try { r = await g.check(); } catch (e) { r = { ok: false, why: "GitHub에 연결하지 못했어요. 인터넷을 확인해 주세요." }; }
   if (!r.ok) { st.textContent = r.why; st.className = "status bad"; return; }
-  gh = g; store.set(LS.token, t); $("tokenBanner").hidden = true; $("token").value = "";
+  gh = g; books = new Books(gh); store.set(LS.token, t); $("tokenBanner").hidden = true; $("token").value = "";
+  loadBookIndex();
   st.textContent = "연결됐어요. 이제 올리기를 할 수 있어요."; st.className = "status ok";
   loadClasses(); onClassChange();
 });
 $("clearToken").addEventListener("click", () => {
-  gh = null; store.set(LS.token, null); $("tokenBanner").hidden = false;
+  gh = null; books = null; bookIdx = null; store.set(LS.token, null); $("tokenBanner").hidden = false;
+  renderBookBox(); renderClassList();
   $("tokenStatus").textContent = "이 브라우저에서 열쇠를 지웠어요."; $("tokenStatus").className = "status";
 });
 
@@ -520,7 +642,8 @@ function renderClassList() {
         h("button", { class: "btn quiet small", type: "button", onclick: edit }, "이름 바꾸기"),
         h("button", { class: "btn quiet small", type: "button", onclick: editCode }, "주소 바꾸기"),
         h("button", { class: "btn quiet small", type: "button", onclick: () => saveQr(c) }, "QR 저장"),
-        h("button", { class: "btn quiet small", type: "button", onclick: askRemove }, "목록에서 빼기")));
+        h("button", { class: "btn quiet small", type: "button", onclick: askRemove }, "목록에서 빼기")),
+      bookPicker(c));
     const edit = () => {
       const inp = h("input", { type: "text", value: c.name, "aria-label": `${c.name} 새 이름` });
       li.replaceChildren(inp, h("code", {}, `${SITE}${c.code}.html`), h("span", { class: "acts" },
