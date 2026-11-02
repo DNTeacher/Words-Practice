@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=12";
-import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=12";
-import { displayIpa } from "./g2p.js?v=12";
-import * as A from "./audio.js?v=12";
-import { Books, resolveRange, rangeHint } from "./books.js?v=12";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=13";
+import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=13";
+import { displayIpa } from "./g2p.js?v=13";
+import * as A from "./audio.js?v=13";
+import { Books, resolveRange, rangeHint } from "./books.js?v=13";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -53,7 +53,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=12");
+    await engine.loadDict("app/dict-us.json?v=13");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -582,13 +582,15 @@ function showDone(c, set, r) {
   // 카톡 공지 문구 (선생님 지정 문구, 2026-10-30 수정)
   const msg = `다나쌤 다음 단어 시험입니다.\n아래 링크에 접속해서 발음을 들어보며 공부하세요.\n${classUrl}`;
   const card = $("doneCard");
-  card.replaceChildren(
-    h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " 1~2분 뒤 학생 주소에 나와요.",
-      r.sameDayCount > 1 ? ` ${dayLabel(set.date)} 단어장 ${r.sameDayCount}개가 반 주소에 차례로 나와요.` : ""),
-    h("div", { class: "copyrow" }, "반 주소 ", h("code", {}, classUrl), copyBtn(classUrl, "주소 복사")),
-    h("div", { class: "copyrow" }, "이 단어장만 ", h("code", {}, dayUrl)),
-    h("div", { class: "copyrow" }, copyBtn(msg, "카톡 공지 문구 복사"),
-      h("button", { class: "btn ghost small", type: "button", onclick: resetForNext }, "다음 단어장 만들기")));
+  card.replaceChildren(h("div", { class: "dgrid" },
+    h("div", {},
+      h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " 1~2분 뒤 학생 주소에 나와요.",
+        r.sameDayCount > 1 ? ` ${dayLabel(set.date)} 단어장 ${r.sameDayCount}개가 반 주소에 차례로 나와요.` : ""),
+      h("div", { class: "copyrow" }, "반 주소 ", h("code", {}, classUrl), copyBtn(classUrl, "주소 복사")),
+      h("div", { class: "copyrow" }, "이 단어장만 ", h("code", {}, dayUrl)),
+      h("div", { class: "copyrow" }, copyBtn(msg, "카톡 공지 문구 복사"),
+        h("button", { class: "btn ghost small", type: "button", onclick: resetForNext }, "다음 단어장 만들기"))),
+    qrBox(c, classUrl)));
   card.hidden = false;
   card.scrollIntoView({ behavior: "smooth", block: "center" });
 }
@@ -811,6 +813,20 @@ $("addClass").addEventListener("click", async () => {
 });
 
 // QR 이미지 (Python make_qr.py 와 같은 모양)
+// 반 주소 QR (올린 뒤 카드 오른쪽): 화면에 작게 보여 주고, 저장은 반 이름이 들어간 큰 그림으로 (설정의 QR 저장과 같은 그림)
+function qrBox(c, url) {
+  if (!window.qrcode) return null;
+  const qr = window.qrcode(0, "M"); qr.addData(url); qr.make();
+  const n = qr.getModuleCount(), quiet = 2, css = 132, dpr = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+  const cv = h("canvas", { width: css * dpr, height: css * dpr, role: "img", "aria-label": `${c.name} 반 주소 QR코드` });
+  const g = cv.getContext("2d"), cell = (css * dpr) / (n + 2 * quiet);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let col = 0; col < n; col++) if (qr.isDark(r, col)) g.fillRect(Math.floor((col + quiet) * cell), Math.floor((r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
+  return h("figure", { class: "qrbox" }, cv,
+    h("figcaption", {}, `${c.name} 반 주소 QR`),
+    h("button", { class: "btn small", type: "button", onclick: () => saveQr(c) }, "QR 저장"));
+}
+
 async function saveQr(c) {
   if (!window.qrcode) return;
   try { await document.fonts.load('700 64px "IBM Plex Sans KR"'); await document.fonts.load('400 38px "IBM Plex Sans KR"'); } catch (e) {}

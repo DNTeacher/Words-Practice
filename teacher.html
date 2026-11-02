@@ -129,6 +129,11 @@ textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px s
 .editbar { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 8px 12px; font-size: 14px; font-weight: 500; }
 .confirm { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--warn-bg); color: var(--warn); border-radius: 10px; padding: 6px 10px; font-size: 13px; font-weight: 500; }
 .done { border-left: 4px solid var(--ok); }
+.done .dgrid { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: start; }
+@media (max-width: 640px) { .done .dgrid { grid-template-columns: 1fr; } .done .qrbox { justify-self: start; } }
+.qrbox { margin: 0; display: grid; justify-items: center; gap: 6px; padding: 10px 12px 12px; border-radius: 12px; background: var(--paper); }
+.qrbox canvas { width: 132px; height: 132px; border-radius: 6px; background: #fff; }
+.qrbox figcaption { font-size: 12.5px; color: var(--ink-soft); text-align: center; }
 .done p { margin: 0 0 8px; }
 .copyrow { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 .copyrow code { background: var(--paper); border-radius: 8px; padding: 6px 10px; font-size: 13px; user-select: all; overflow-wrap: anywhere; }
@@ -266,6 +271,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=12"></script>
+<script type="module" src="app/app.js?v=13"></script>
 </body>
 </html>
