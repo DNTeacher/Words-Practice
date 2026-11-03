@@ -84,30 +84,39 @@ export class Pages {
 `;
   }
 
-  // 반 페이지 HTML (그날 단어장 전부 + 지난 단어장)
-  classPage(cls, date, sets, past) {
-    const title = dayTitle(date, sets);
-    const n = sets.reduce((k, s) => k + s.words.length, 0);
-    const data = { date, title, sample: false, cls: cls.name, cls_code: cls.code, sets: sets.map(s => ({ href: s.href, title: s.title, words: s.words })), past };
-    return this.studentPage(data, {
-      title: `${BRAND} · ${cls.name}`,
-      desc: sets.length > 1 ? `최신: ${title} (단어장 ${sets.length}개) · 단어 ${n}개` : `최신: ${title} · 단어 ${n}개`,
-      url: SITE + cls.code + ".html",
-    });
+  // 반 페이지 HTML (그날 단어장 전부 + 지난 단어장, 예약한 단어장은 data.next 사슬)
+  classPageFromData(cls, data) {
+    const sets = data.sets || [], n = sets.reduce((k, s) => k + s.words.length, 0);
+    const desc = data.next || !sets.length ? "단어를 누르면 발음이 나와요"
+      : sets.length > 1 ? `최신: ${data.title} (단어장 ${sets.length}개) · 단어 ${n}개` : `최신: ${data.title} · 단어 ${n}개`;
+    return this.studentPage(data, { title: `${BRAND} · ${cls.name}`, desc, url: SITE + cls.code + ".html" });
   }
+  classPage(cls, date, sets, past) {
+    const data = { date, title: dayTitle(date, sets), sample: false, cls: cls.name, cls_code: cls.code, sets: sets.map(s => ({ href: s.href, title: s.title, words: s.words })), past };
+    return this.classPageFromData(cls, data);
+  }
+  // set.showFrom: 예약 ("2026-11-04T19:00:00+09:00"). 날짜별 주소는 예약 전에도 열린다.
   datedPage(cls, href, set) {
-    return this.studentPage({ date: set.date, title: set.title, sample: false, words: set.words, cls: cls.name, cls_code: cls.code, home: `${cls.code}.html` }, {
+    const data = { date: set.date, title: set.title, sample: false, words: set.words, cls: cls.name, cls_code: cls.code, home: `${cls.code}.html` };
+    if (set.showFrom) data.showFrom = set.showFrom;
+    return this.studentPage(data, {
       title: `${BRAND} · ${cls.name} ${set.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${set.words.length}개`, url: SITE + href,
     });
   }
 
   // 지금 반 페이지에 있는 단어장 목록 (최신 날짜 단어장들 + 지난 단어장). [{href, date, title, n, words?}]
+  // 예약한 단어장(data.next 사슬)도 넣는다: showFrom = 보이기 시작하는 때 (지금 보이는 것은 null)
   entriesOf(cls, currentClassHtml) {
     const cur = readData(currentClassHtml);
     if (!cur || cur.cls_code !== cls.code) return [];
-    const out = setsOf(cur, cls.code).map(s => ({ href: s.href, date: cur.date, title: s.title, n: s.words.length, words: s.words }));
-    for (const p of cur.past || []) out.push({ href: p.href, date: p.date || dateOf(p.href), title: p.title, n: p.n });
-    return out;
+    const out = new Map();
+    const add = (d, at) => {
+      if (d.date) for (const s of setsOf(d, cls.code)) if (!out.has(s.href)) out.set(s.href, { href: s.href, date: d.date, title: s.title, n: s.words.length, words: s.words, showFrom: at });
+      for (const p of d.past || []) if (!out.has(p.href)) out.set(p.href, { href: p.href, date: p.date || dateOf(p.href), title: p.title, n: p.n, showFrom: at });
+    };
+    add(cur, null);
+    for (let n = cur.next; n && n.data; n = n.data.next) add(n.data, n.at);
+    return [...out.values()];
   }
 
   // 새 단어장(set) 을 올릴 때 바뀌는 파일: 그 단어장 페이지, 반 페이지.
@@ -115,7 +124,7 @@ export class Pages {
   //  - 같은 날짜에 같은 제목이 있으면 그 단어장을 바꾸고, 제목이 다르면 새 단어장으로 추가 (-2, -3 …)
   //  - getData(href): 반 페이지에 단어가 없는 최신 날짜 단어장의 DATA 를 가져오는 함수 (예전 형식 대비)
   //  - existing: 저장소에 있는 파일 이름들 (빈 이름 고르기용)
-  async buildSetFiles(cls, set, currentClassHtml, { replaceHref = null, getData = null, existing = [] } = {}) {
+  async buildSetFiles(cls, set, currentClassHtml, { replaceHref = null, getData = null, existing = [], now = Date.now() } = {}) {
     const entries = this.entriesOf(cls, currentClassHtml);
     const sameDay = entries.filter(e => e.date === set.date);
     let href = null;
@@ -128,10 +137,10 @@ export class Pages {
       href = `${base}.html`;
       for (let k = 2; used.has(href); k++) href = `${base}-${k}.html`;
     }
-    const entry = { href, date: set.date, title: set.title, n: set.words.length, words: set.words };
+    const entry = { href, date: set.date, title: set.title, n: set.words.length, words: set.words, showFrom: set.showFrom || null };
     const at = entries.findIndex(e => e.href === href);
     if (at >= 0) entries[at] = entry; else entries.push(entry);
-    const classHtml = await this._classFromEntries(cls, entries, getData);
+    const classHtml = await this._classFromEntries(cls, entries, getData, now);
     return {
       files: { [href]: this.datedPage(cls, href, set), [`${cls.code}.html`]: classHtml },
       file: href, replacing, sameDayCount: entries.filter(e => e.date === set.date).length,
@@ -146,24 +155,48 @@ export class Pages {
     const gone = entries.find(e => e.href === href);
     if (!gone) throw new Error("반 페이지에서 이 단어장을 찾지 못했어요. 새로고침한 뒤 다시 해 주세요.");
     const rest = entries.filter(e => e !== gone);
+    for (const e of rest) if (e.showFrom && Date.parse(e.showFrom) <= Date.now()) e.showFrom = null;
     const notice = this.redirectPage(`${cls.code}.html`, { title: "지운 단어장이에요", text: "이 단어장은 선생님이 지웠어요. 우리 반 단어장으로 이동하고 있어요.", link: "우리 반 단어장 보기 ›" });
     return { files: { [href]: notice, [`${cls.code}.html`]: await this._classFromEntries(cls, rest, getData) }, removed: gone, left: rest.length };
   }
 
+  // 예약한 단어장을 지금 바로 보이게 (예약 지우기): 그 날짜별 페이지와 반 페이지를 다시 만든다
+  async buildShowNowFiles(cls, href, currentClassHtml, { getData }) {
+    const entries = this.entriesOf(cls, currentClassHtml);
+    const e = entries.find(x => x.href === href);
+    if (!e) throw new Error("반 페이지에서 이 단어장을 찾지 못했어요. 새로고침한 뒤 다시 해 주세요.");
+    const d = readData(await getData(href));
+    if (!d) throw new Error("단어장 페이지를 읽지 못했어요.");
+    e.showFrom = null;
+    return { files: { [href]: this.datedPage(cls, href, { date: d.date, title: d.title, words: d.words }), [`${cls.code}.html`]: await this._classFromEntries(cls, entries, getData) } };
+  }
+
   // 단어장 목록 → 반 페이지 (날짜 최신순, 같은 날짜 안에서는 올린 순서 그대로). 하나도 없으면 빈 반 페이지.
-  async _classFromEntries(cls, entries, getData) {
+  // 예약(showFrom 이 지금보다 뒤)한 단어장은 지금 DATA 에는 없고 DATA.next = { at, data } 사슬에 "그때의 반 페이지"로 들어간다.
+  // 학생 페이지는 열 때 기기 시계로 지금 보일 것을 고른다 (template.html). Python make_site.class_data_timeline 과 같은 규칙.
+  async _classFromEntries(cls, entries, getData, now = Date.now()) {
     if (!entries.length) return this.emptyClassPage(cls);
     const order = new Map(entries.map((e, i) => [e, i]));
-    entries.sort((x, y) => y.date.localeCompare(x.date) || order.get(x) - order.get(y));
-    const latestDate = entries[0].date;
-    const latest = entries.filter(e => e.date === latestDate);
-    for (const e of latest) {
-      if (e.words) continue;
-      const d = getData ? readData(await getData(e.href)) : null;
-      e.words = d ? d.words : [];
-    }
-    const past = entries.filter(e => e.date !== latestDate).map(e => ({ href: e.href, title: e.title, n: e.n, date: e.date }));
-    return this.classPage(cls, latestDate, latest, past);
+    const future = [...new Set(entries.filter(e => e.showFrom && Date.parse(e.showFrom) > now).map(e => e.showFrom))].sort((a, b) => Date.parse(a) - Date.parse(b));
+    const stateAt = async t => {
+      const vis = entries.filter(e => !e.showFrom || Date.parse(e.showFrom) <= t)
+        .sort((x, y) => y.date.localeCompare(x.date) || order.get(x) - order.get(y));
+      const d = { date: null, title: "", sample: false, cls: cls.name, cls_code: cls.code, sets: [], past: [] };
+      if (!vis.length) return d;
+      const latestDate = vis[0].date, latest = vis.filter(e => e.date === latestDate);
+      for (const e of latest) {
+        if (e.words) continue;
+        const r = getData ? readData(await getData(e.href)) : null;
+        e.words = r ? r.words : [];
+      }
+      const sets = latest.map(e => ({ href: e.href, title: e.title, words: e.words }));
+      return Object.assign(d, { date: latestDate, title: dayTitle(latestDate, sets), sets,
+        past: vis.filter(e => e.date !== latestDate).map(e => ({ href: e.href, title: e.title, n: e.n, date: e.date })) });
+    };
+    const data = await stateAt(now);
+    let tail = data;
+    for (const at of future) { const nd = await stateAt(Date.parse(at)); tail.next = { at, data: nd }; tail = nd; }
+    return this.classPageFromData(cls, data);
   }
 }
 
@@ -209,6 +242,7 @@ export class GitHub {
       const commit = await json(await this.api(`/git/commits/${head}`));
       const tree = [];
       for (const [path, content] of Object.entries(files)) {
+        if (content === null) { tree.push({ path, mode: "100644", type: "blob", sha: null }); continue; }  // 파일 지우기
         const blob = await json(await this.api("/git/blobs", { method: "POST", body: { content, encoding: "utf-8" } }));
         tree.push({ path, mode: "100644", type: "blob", sha: blob.sha });
       }

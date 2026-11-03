@@ -1,13 +1,13 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=15";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=15";
-import { displayIpa } from "./g2p.js?v=15";
-import * as A from "./audio.js?v=15";
-import { Books, resolveRange, rangeHint } from "./books.js?v=15";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=16";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=16";
+import { displayIpa } from "./g2p.js?v=16";
+import * as A from "./audio.js?v=16";
+import { Books, resolveRange, rangeHint } from "./books.js?v=16";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
-const LS = { token: "wp-gh-token", draft: "wp-draft", range: "wp-last-range" };
+const LS = { token: "wp-gh-token", draft: "wp-draft", range: "wp-last-range", time: "wp-show-time" };
 const store = {
   get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
   set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} },
@@ -32,6 +32,8 @@ let gh = null, classes = [], items = [], busy = false, engineReady = false, titl
 let editing = null; // { code, href, date, title } "지난 단어장 고치기"로 불러온 단어장 (setEditing 으로만 바꾼다)
 // 단어장 정리본 (Words-Books): books = 읽기 도구, bookIdx = 반 ↔ 단어장 목록, importedPos = 가져온 단어의 품사 (발음 고르기에 씀)
 let books = null, bookIdx = null, bookIdxErr = null, lastRangeTitle = null, importedPos = new Map();
+// 준비해 둔 단어장 (Words-Books/drafts): drafts = 목록, draftEditing = "고치기"로 불러온 준비 단어장 { id, title }
+let drafts = [], draftEditing = null;
 const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
@@ -44,6 +46,7 @@ async function init() {
 
   await loadClasses();
   loadBookIndex();
+  loadDrafts();
   restoreDraft();
   if (!$("date").value) $("date").value = today();
   if (!titleTouched) $("title").value = autoTitle($("date").value);
@@ -53,7 +56,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=15");
+    await engine.loadDict("app/dict-us.json?v=16");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -114,9 +117,11 @@ async function onClassChange() {
   if (classInfo.code !== c.code) return;
   classInfo.entries = pages.entriesOf(c, html);
   if (classInfo.entries.length) {
-    $("prevSel").replaceChildren(...classInfo.entries.map(e => h("option", { value: e.href }, `${dayLabel(e.date)} · ${e.title}`)));
+    $("prevSel").replaceChildren(...classInfo.entries.map(e => h("option", { value: e.href },
+      `${dayLabel(e.date)} · ${e.title}` + (isFuture(e.showFrom) ? ` (⏰ ${fmtWhen(e.showFrom)}부터 보임)` : ""))));
     $("prevBox").hidden = false;
   }
+  updatePrevNow();
 }
 
 $("cls").addEventListener("change", () => { setEditing(null); delMsg(""); saveDraft(); onClassChange(); clearDone(); });
@@ -128,6 +133,7 @@ $("date").addEventListener("change", () => {
 // 불러온 단어장을 고치는 중이면 눈에 보이게 (올리면 그 단어장이 바뀐다는 것을 알 수 있게)
 function setEditing(v) {
   editing = v;
+  if (v && draftEditing) draftEditing = null;
   const bar = $("editBar");
   if (!v) { bar.hidden = true; bar.replaceChildren(); return; }
   bar.replaceChildren(
@@ -144,12 +150,254 @@ $("prevLoad").addEventListener("click", async () => {
     const html = gh ? await gh.getText(href) : await (await fetch(href, { cache: "no-cache" })).text();
     const d = readData(html); if (!d) throw new Error("단어장을 읽지 못했어요");
     $("date").value = d.date; $("title").value = d.title; titleTouched = true;
-    $("words").value = d.words.map(w => `${w.w} ${w.m}`).join("\n");
+    $("words").value = d.words.map(w => `${w.w}\t${w.m}`).join("\n");
     setEditing({ code: curClass().code, href, date: d.date, title: d.title });
+    // 예약해 둔 단어장을 고치면 예약도 그대로 (모르고 바로 보이게 되지 않도록)
+    dockSched.set(isFuture(d.showFrom) ? d.showFrom : null);
     saveDraft(); clearDone();
     $("words").focus();
   } catch (e) { showErr(e.message); }
 });
+
+// ---------- 예약 (학생에게 보이기 시작하는 때) ----------
+// 학원은 한국 시간이라 +09:00 으로 저장한다. 학생 페이지는 이 시각과 기기 시계를 비교해 보일 단어장을 고른다.
+const isFuture = iso => !!iso && Date.parse(iso) > Date.now();
+function fmtWhen(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso || ""); if (!m) return iso || "";
+  const dow = "일월화수목금토"[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()];
+  const hh = +m[4], ap = hh < 12 ? "오전" : "오후", h12 = hh % 12 || 12;
+  return `${+m[2]}월 ${+m[3]}일(${dow}) ${ap} ${h12}:${m[5]}`;
+}
+let schedSeq = 0;
+// "학생에게 보이기 ( ) 올리면 바로 ( ) 정한 때부터 [날짜] [시각]" 묶음. get() → { showFrom } 또는 { error }
+function makeSched(defaultDate) {
+  const n = ++schedSeq;
+  const now = h("input", { type: "radio", name: `when${n}`, value: "now", checked: true });
+  const later = h("input", { type: "radio", name: `when${n}`, value: "later" });
+  const date = h("input", { type: "date", "aria-label": "보이기 시작하는 날짜", disabled: true });
+  const time = h("input", { type: "time", "aria-label": "보이기 시작하는 시각", step: 300, disabled: true });
+  const hint = h("span", { class: "wh" });
+  const el = h("div", { class: "sched" }, h("b", {}, "학생에게 보이기"),
+    h("label", {}, now, "올리면 바로"), h("label", {}, later, "정한 때부터"), date, time, hint);
+  const iso = () => /^\d{4}-\d{2}-\d{2}$/.test(date.value) && /^\d{2}:\d{2}$/.test(time.value) ? `${date.value}T${time.value}:00+09:00` : null;
+  const upd = () => {
+    const on = later.checked; date.disabled = time.disabled = !on;
+    if (on && !date.value) date.value = (typeof defaultDate === "function" ? defaultDate() : defaultDate) || today();
+    if (on && !time.value) time.value = store.get(LS.time) || "19:00";
+    const v = on ? iso() : null;
+    hint.className = "wh";
+    if (!on) hint.textContent = "";
+    else if (!v) hint.textContent = "날짜와 시각을 골라 주세요";
+    else if (!isFuture(v)) { hint.textContent = "이미 지난 시각이에요"; hint.className = "wh bad"; }
+    else hint.textContent = `→ ${fmtWhen(v)}부터 반 주소 맨 위에 나와요`;
+  };
+  [now, later, date, time].forEach(x => x.addEventListener("input", upd));
+  [now, later].forEach(x => x.addEventListener("change", upd));
+  return {
+    el,
+    get() {
+      if (!later.checked) return { showFrom: null };
+      const v = iso();
+      if (!v) return { error: "학생에게 보이기 시작할 날짜와 시각을 골라 주세요." };
+      if (!isFuture(v)) return { error: "보이기 시작할 때가 이미 지났어요. 바로 보이게 하려면 ‘올리면 바로’를 골라 주세요." };
+      store.set(LS.time, time.value);
+      return { showFrom: v };
+    },
+    set(v) {
+      const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(v || "");
+      if (m) { later.checked = true; date.value = m[1]; time.value = m[2]; } else { now.checked = true; }
+      upd();
+    },
+  };
+}
+const dockSched = makeSched(() => $("date").value);
+$("dockSched").replaceWith(Object.assign(dockSched.el, { id: "dockSched" }));
+
+// 반 주소 맨 위에는 날짜가 가장 늦은 단어장이 나온다. 이 단어장보다 늦은 날짜의 단어장이 (보일 때) 이미 있으면 그것을 돌려준다.
+function laterListAt(entries, date, title, showFrom) {
+  const t = showFrom ? Date.parse(showFrom) : Date.now();
+  return entries.filter(e => !(e.date === date && e.title === title))
+    .filter(e => !e.showFrom || Date.parse(e.showFrom) <= t)
+    .sort((a, b) => b.date.localeCompare(a.date)).find(e => e.date > date) || null;
+}
+function lateMsg(e, date, showFrom) {
+  return `${showFrom ? "예약 시각이 되어도" : "올려도"} 반 주소 맨 위에 나오지 않고 지난 단어장에 들어가요. ${dayLabel(e.date)} “${e.title}” 단어장이 이 단어장(${dayLabel(date)})보다 날짜가 늦어서예요. 날짜를 시험 날짜로 바꿔 주세요. 그래도 올리려면 올리기를 누르세요.`;
+}
+function updatePrevNow() {
+  const e = classInfo.entries.find(x => x.href === $("prevSel").value);
+  $("prevNow").hidden = !(e && isFuture(e.showFrom));
+}
+$("prevSel").addEventListener("change", updatePrevNow);
+$("prevNow").addEventListener("click", async () => {
+  const c = curClass(), e = classInfo.entries.find(x => x.href === $("prevSel").value);
+  if (!c || !e || busy) return;
+  if (!gh) return delMsg("", "바꾸려면 먼저 설정에서 GitHub 열쇠를 넣어 주세요.");
+  busy = true; setBusy(true); delMsg("ok", "지금 바로 보이게 바꾸는 중…");
+  try {
+    const cur = await gh.getText(`${c.code}.html`);
+    const r = await pages.buildShowNowFiles(c, e.href, cur, { getData: href => gh.getText(href) });
+    await gh.commit(r.files, `${c.name} ${e.title} 예약 없이 바로 보이기 (단어장 앱)`);
+    await onClassChange();
+    delMsg("ok", `✓ “${e.title}” 단어장을 지금 바로 보이게 바꿨어요. 1~2분 뒤 반 주소에 나와요.`);
+  } catch (err) { console.error(err); delMsg("", "바꾸지 못했어요: " + (err.message || err)); }
+  finally { busy = false; setBusy(false); }
+});
+
+// ---------- 준비해 둔 단어장 (미리 만들어 저장, 숙제 낼 때 올리기) ----------
+const clsName = code => (classes.find(c => c.code === code) || { name: code }).name;
+function draftMsg(text, ok) { const st = $("draftStatus"); st.textContent = text || ""; st.className = "status" + (ok === true ? " ok" : ok === false ? " bad" : ""); }
+async function loadDrafts() {
+  if (!books) { drafts = []; renderDrafts(); return; }
+  try { drafts = await books.drafts(); } catch (e) { console.error(e); drafts = []; }
+  renderDrafts();
+}
+function setDraftEditing(v) {
+  draftEditing = v;
+  const bar = $("editBar");
+  if (!v) { if (!editing) { bar.hidden = true; bar.replaceChildren(); } return; }
+  if (editing) setEditing(null);
+  bar.replaceChildren(
+    h("span", {}, `준비해 둔 “${v.title}” 단어장을 고치는 중이에요. 발음을 다시 만든 뒤 저장해 두기를 누르면 이 단어장이 바뀌어요.`),
+    h("button", { class: "btn ghost small", type: "button", onclick: () => setDraftEditing(null) }, "고치지 않고 새 단어장으로 만들기"));
+  bar.hidden = false;
+}
+function renderDrafts() {
+  const card = $("draftCard"), ul = $("draftList");
+  card.hidden = !drafts.length;
+  ul.replaceChildren(...drafts.map(d => {
+    const li = h("li", {});
+    const panel = h("div", { class: "panel", hidden: true });
+    const close = () => { panel.hidden = true; panel.className = "panel"; panel.replaceChildren(); };
+    const row = h("div", { class: "row1" },
+      h("div", {}, h("div", { class: "t" }, `${clsName(d.cls)} · ${d.title}`),
+        h("div", { class: "s" }, `${dayLabel(d.date)} · 단어 ${d.n}개 · ${dayLabel((d.saved || "").slice(0, 10))}에 저장`)),
+      h("div", { class: "acts" },
+        h("button", { class: "btn ghost small", type: "button", onclick: () => previewDraft(d) }, "학생 화면 미리 보기"),
+        h("button", { class: "btn quiet small", type: "button", onclick: () => editDraft(d) }, "고치기"),
+        h("button", { class: "btn quiet small del", type: "button", onclick: () => {
+          panel.className = "panel bad"; panel.hidden = false;
+          panel.replaceChildren(h("span", {}, `준비해 둔 “${d.title}” 단어장을 지울까요? 학생 페이지에는 원래 없어서 학생에게는 아무 변화가 없어요.`),
+            h("div", { class: "acts" },
+              h("button", { class: "btn small", type: "button", style: "background:var(--bad);color:#fff", onclick: () => deleteDraft(d) }, "지우기"),
+              h("button", { class: "btn quiet small", type: "button", onclick: close }, "취소")));
+        } }, "지우기"),
+        h("button", { class: "btn small", type: "button", onclick: () => {
+          const sc = makeSched(d.date);
+          panel.className = "panel"; panel.hidden = false;
+          const go = h("button", { class: "btn small", type: "button", onclick: () => publishDraft(d, sc, go) }, "올리기");
+          panel.replaceChildren(h("div", {}, h("b", {}, `${clsName(d.cls)} · ${d.title}`), ` ${dayLabel(d.date)} · 단어 ${d.n}개를 올릴까요?`),
+            sc.el, h("div", { class: "acts" }, go, h("button", { class: "btn quiet small", type: "button", onclick: close }, "취소")));
+        } }, "올리기")));
+    li.append(row, panel);
+    return li;
+  }));
+}
+async function previewDraft(meta) {
+  const w = window.open("about:blank", "_blank");
+  try {
+    const d = await books.getDraft(meta.id);
+    const c = classes.find(x => x.code === d.cls) || { code: d.cls, name: d.cls };
+    const html = pages.datedPage(c, `${c.code}-${d.date}.html`, { date: d.date, title: d.title, words: d.words });
+    const url = URL.createObjectURL(new Blob([html], { type: "text/html" }));
+    if (w) w.location = url; else draftMsg("새 탭이 막혔어요. 브라우저 주소창 오른쪽의 팝업 차단 표시를 눌러 이 사이트를 허용해 주세요.", false);
+  } catch (e) { if (w) w.close(); draftMsg("미리 보기를 열지 못했어요: " + (e.message || e), false); }
+}
+async function editDraft(meta) {
+  if (busy) return;
+  try {
+    const d = await books.getDraft(meta.id);
+    if (classes.some(c => c.code === d.cls)) { $("cls").value = d.cls; await onClassChange(); }
+    $("date").value = d.date; $("title").value = d.title; titleTouched = true;
+    $("words").value = d.words.map(w => `${w.w}\t${w.m}`).join("\n");
+    items = []; $("list").replaceChildren(); $("resultCard").hidden = true; $("dock").hidden = true; clearDone();
+    setEditing(null); setDraftEditing({ id: d.id, title: d.title });
+    saveDraft(); draftMsg("");
+    window.scrollTo({ top: 0, behavior: "smooth" }); $("words").focus();
+  } catch (e) { draftMsg("불러오지 못했어요: " + (e.message || e), false); }
+}
+async function deleteDraft(meta) {
+  if (busy) return;
+  busy = true; setBusy(true); draftMsg("지우는 중…");
+  try {
+    drafts = await books.deleteDraft(meta.id, `${clsName(meta.cls)} ${meta.title} 준비 단어장 지움 (단어장 앱)`);
+    if (draftEditing && draftEditing.id === meta.id) setDraftEditing(null);
+    renderDrafts(); draftMsg(`✓ 준비해 둔 “${meta.title}” 단어장을 지웠어요.`, true);
+  } catch (e) { console.error(e); draftMsg("지우지 못했어요: " + (e.message || e), false); }
+  finally { busy = false; setBusy(false); }
+}
+function removeDraftQuietly(id, message) {
+  books.deleteDraft(id, message).then(list => { drafts = list; renderDrafts(); }).catch(e => console.error(e));
+}
+// 이번 단어장에서 기본과 다른 소리를 쓴 단어 (준비 단어장에 같이 저장했다가 올릴 때 fixes.json 에 넣는다)
+function fixesOfItems() {
+  const fx = {};
+  for (const it of items) if (it.ps && it.variantUsed && it.variantUsed !== "plain") fx[it.ps] = it.variantUsed;
+  return fx;
+}
+// 아래 막대의 '저장해 두기'
+$("saveDraft").addEventListener("click", async () => {
+  if (busy || !ready()) return;
+  if (!gh || !books) { openSettings(); $("tokenStatus").textContent = "저장해 두려면 먼저 GitHub 열쇠를 넣어 주세요."; $("tokenStatus").className = "status bad"; return; }
+  const c = curClass(); if (!c) return;
+  busy = true; setBusy(true); $("saveDraft").textContent = "저장하는 중…";
+  try {
+    const set = currentSet();
+    const id = draftEditing ? draftEditing.id : `${c.code}-${set.date}-${Date.now().toString(36)}`;
+    const d = { id, cls: c.code, date: set.date, title: set.title, words: set.words, fixes: fixesOfItems(), saved: new Date().toISOString() };
+    drafts = await books.saveDraft(d, `${c.name} ${set.title} 준비해 둠 (단어장 앱)`);
+    const wasEditing = !!draftEditing;
+    setDraftEditing(null); setEditing(null); renderDrafts();
+    const card = $("doneCard");
+    card.replaceChildren(
+      h("p", {}, h("b", {}, `“${set.title}” 단어장을 ${wasEditing ? "고쳐서 " : ""}준비해 두었어요.`), " 학생에게는 아직 안 보여요. 숙제를 낼 때 맨 위 ‘준비해 둔 단어장’에서 올리기를 누르세요."),
+      h("div", { class: "copyrow" }, h("button", { class: "btn ghost small", type: "button", onclick: resetForNext }, "다음 단어장 만들기")));
+    card.hidden = false; card.scrollIntoView({ behavior: "smooth", block: "center" });
+  } catch (e) { console.error(e); showErr("저장하지 못했어요: " + (e.message || e)); }
+  finally { busy = false; setBusy(false); $("saveDraft").textContent = "저장해 두기"; }
+});
+// 준비해 둔 단어장 올리기 (바로 또는 예약)
+async function publishDraft(meta, sc, btn, confirmed = false) {
+  if (busy) return;
+  if (!gh) return draftMsg("올리려면 먼저 설정에서 GitHub 열쇠를 넣어 주세요.", false);
+  const c = classes.find(x => x.code === meta.cls);
+  if (!c) return draftMsg(`반 목록에 ${meta.cls} 반이 없어요. 설정에서 반을 확인해 주세요.`, false);
+  const when = sc.get();
+  if (when.error) return draftMsg(when.error, false);
+  busy = true; setBusy(true); btn.textContent = "올리는 중…"; draftMsg("");
+  try {
+    const d = await books.getDraft(meta.id);
+    const cur = await gh.getText(`${c.code}.html`);
+    const entries = pages.entriesOf(c, cur);
+    const warn = [];
+    if (entries.some(e => e.date === d.date && e.title === d.title)) warn.push(`${c.name}에 ${dayLabel(d.date)} “${d.title}” 단어장이 이미 있어요. 올리면 그 단어장이 이 내용으로 바뀌어요.`);
+    const later = laterListAt(entries, d.date, d.title, when.showFrom);
+    if (later) warn.push(lateMsg(later, d.date, when.showFrom).replace("날짜를 시험 날짜로 바꿔 주세요.", "날짜를 바꾸려면 고치기를 누르세요.").replace(" 그래도 올리려면 올리기를 누르세요.", ""));
+    if (warn.length) warn.push("그래도 올리려면 ‘그래도 올리기’를 누르세요.");
+    if (!confirmed && warn.length) {
+      busy = false; setBusy(false);
+      const again = h("button", { class: "btn small", type: "button" }, "그래도 올리기");
+      again.addEventListener("click", () => publishDraft(meta, sc, again, true));
+      btn.replaceWith(again);
+      return draftMsg(warn.join(" "), false);
+    }
+    const set = { date: d.date, title: d.title, words: d.words, ...(when.showFrom ? { showFrom: when.showFrom } : {}) };
+    const existing = await gh.listRoot();
+    const r = await pages.buildSetFiles(c, set, cur, { getData: href => gh.getText(href), existing });
+    let base = {};
+    try { const t = await gh.getText("app/fixes.json"); if (t) base = JSON.parse(t); } catch (e) {}
+    const fx = { ...base, ...(d.fixes || {}) };
+    if (JSON.stringify(fx) !== JSON.stringify(base)) r.files["app/fixes.json"] = JSON.stringify(fx, null, 2) + "\n";
+    await gh.commit(r.files, `${c.name} ${d.title} ${r.replacing ? "고침" : "올림"} (준비해 둔 단어장)`);
+    if (r.files["app/fixes.json"]) engine.fixes = fx;
+    drafts = await books.deleteDraft(meta.id, `${c.name} ${d.title} 올려서 준비 목록에서 뺌 (단어장 앱)`).catch(e => { console.error(e); return drafts.filter(x => x.id !== meta.id); });
+    if (draftEditing && draftEditing.id === meta.id) setDraftEditing(null);
+    renderDrafts();
+    showDone(c, set, r);
+    if (curClass() && curClass().code === c.code) onClassChange();
+  } catch (e) {
+    console.error(e); draftMsg("올리지 못했어요: " + (e.message || e), false);
+  } finally { busy = false; setBusy(false); if (btn.isConnected && btn.textContent === "올리는 중…") btn.textContent = "올리기"; }
+}
 
 // ---------- 잘못 올린 단어장 지우기 ----------
 function delMsg(cls, ...kids) { const b = $("delAsk"); b.className = "delask" + (cls ? " " + cls : ""); b.replaceChildren(...kids); b.hidden = !kids.length; }
@@ -371,7 +619,7 @@ function setProg(text, p) {
 function setBusy(on) {
   $("make").disabled = on || !engineReady;
   $("make").textContent = on ? "만드는 중…" : "발음 만들기";
-  $("publish").disabled = on; $("preview").disabled = on;
+  $("publish").disabled = on; $("preview").disabled = on; $("saveDraft").disabled = on;
   document.querySelectorAll(".item button").forEach(b => { if (!b.classList.contains("playbtn")) b.disabled = on; });
 }
 
@@ -564,9 +812,16 @@ async function publish(confirmed = {}) {
   if (!editingThis && classInfo.code === c.code && classInfo.entries.some(e => e.date === date && e.title === title) && !confirmed.overwrite) {
     return askConfirm(`${c.name}에 ${dayLabel(date)} “${title}” 단어장이 이미 있어요. 새 것으로 바꿀까요? (다른 단어장으로 추가하려면 제목을 바꿔 주세요)`, () => publish({ ...confirmed, overwrite: true }));
   }
+  const when = dockSched.get();
+  if (when.error) return showErr(when.error);
+  if (!editingThis && !confirmed.late && classInfo.code === c.code) {
+    const later = laterListAt(classInfo.entries, date, title, when.showFrom);
+    if (later) return askConfirm(lateMsg(later, date, when.showFrom), () => publish({ ...confirmed, late: true }));
+  }
   busy = true; setBusy(true); $("publish").textContent = "올리는 중…";
   try {
     const set = currentSet();
+    if (when.showFrom) set.showFrom = when.showFrom;
     const cur = await gh.getText(`${c.code}.html`);
     const existing = await gh.listRoot();
     const r = await pages.buildSetFiles(c, set, cur, { replaceHref: editingThis ? editing.href : null, getData: href => gh.getText(href), existing });
@@ -575,7 +830,10 @@ async function publish(confirmed = {}) {
     await gh.commit(r.files, `${c.name} ${set.title} ${r.replacing ? "고침" : "올림"} (단어장 앱)`);
     if (fx) engine.fixes = fx;
     setEditing(null); // 올린 뒤에는 새로 시작 (제목을 바꿔 다시 올리면 새 단어장으로 추가, 같은 제목이면 바꿀지 물음)
+    // 준비해 둔 단어장을 고쳐서 바로 올렸으면 준비 목록에서는 뺀다
+    if (draftEditing) { const id = draftEditing.id; setDraftEditing(null); removeDraftQuietly(id, `${c.name} ${set.title} 올려서 준비 목록에서 뺌 (단어장 앱)`); }
     showDone(c, set, r);
+    dockSched.set(null);
     onClassChange();
   } catch (e) {
     console.error(e); showErr("올리지 못했어요: " + (e.message || e));
@@ -612,8 +870,11 @@ function showDone(c, set, r) {
   const card = $("doneCard");
   card.replaceChildren(h("div", { class: "dgrid" },
     h("div", {},
-      h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " 1~2분 뒤 학생 주소에 나와요.",
-        r.sameDayCount > 1 ? ` ${dayLabel(set.date)} 단어장 ${r.sameDayCount}개가 반 주소에 차례로 나와요.` : ""),
+      set.showFrom
+        ? h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " ", h("span", { class: "pill2" }, "⏰ 예약"),
+            ` ${fmtWhen(set.showFrom)}부터 반 주소 맨 위에 나와요. 그 전까지는 지금 단어장이 그대로 보여요.`)
+        : h("p", {}, h("b", {}, `${c.name}에 ${r.replacing ? "고쳐서 올렸어요" : "올렸어요"}.`), " 1~2분 뒤 학생 주소에 나와요.",
+            r.sameDayCount > 1 ? ` ${dayLabel(set.date)} 단어장 ${r.sameDayCount}개가 반 주소에 차례로 나와요.` : ""),
       h("div", { class: "copyrow" }, "반 주소 ", h("code", {}, classUrl), copyBtn(classUrl, "주소 복사")),
       h("div", { class: "copyrow" }, "이 단어장만 ", h("code", {}, dayUrl)),
       h("div", { class: "copyrow" }, copyBtn(msg, "카톡 공지 문구 복사"),
@@ -632,7 +893,7 @@ function copyBtn(text, label) {
 }
 function clearDone() { $("doneCard").hidden = true; }
 function resetForNext() {
-  setEditing(null);
+  setEditing(null); setDraftEditing(null); dockSched.set(null);
   items = []; $("list").replaceChildren(); $("resultCard").hidden = true; $("dock").hidden = true; clearDone();
   $("words").value = ""; titleTouched = false; $("title").value = autoTitle($("date").value); saveDraft();
   window.scrollTo({ top: 0, behavior: "smooth" }); $("words").focus();
@@ -653,13 +914,13 @@ $("saveToken").addEventListener("click", async () => {
   let r; try { r = await g.check(); } catch (e) { r = { ok: false, why: "GitHub에 연결하지 못했어요. 인터넷을 확인해 주세요." }; }
   if (!r.ok) { st.textContent = r.why; st.className = "status bad"; return; }
   gh = g; books = new Books(gh); store.set(LS.token, t); $("tokenBanner").hidden = true; $("token").value = "";
-  loadBookIndex();
+  loadBookIndex(); loadDrafts();
   st.textContent = "연결됐어요. 이제 올리기를 할 수 있어요."; st.className = "status ok";
   loadClasses(); onClassChange();
 });
 $("clearToken").addEventListener("click", () => {
   gh = null; books = null; bookIdx = null; store.set(LS.token, null); $("tokenBanner").hidden = false;
-  renderBookBox(); renderClassList();
+  renderBookBox(); renderClassList(); drafts = []; renderDrafts();
   $("tokenStatus").textContent = "이 브라우저에서 열쇠를 지웠어요."; $("tokenStatus").className = "status";
 });
 

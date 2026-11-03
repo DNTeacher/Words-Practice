@@ -23,6 +23,30 @@ export class Books {
     }
     return this.cache.get(id);
   }
+  // ---- 준비해 둔 단어장 (2026-11-03): drafts/index.json = { drafts: [{ id, cls, date, title, n, saved }] }, drafts/<id>.json = { id, cls, date, title, words: [{ w, m, a }], fixes, saved }
+  async drafts() {
+    const t = await this.gh.getText("drafts/index.json");
+    const j = t ? JSON.parse(t) : { drafts: [] };
+    return Array.isArray(j.drafts) ? j.drafts : [];
+  }
+  async getDraft(id) {
+    const t = await this.gh.getText(`drafts/${id}.json`);
+    if (!t) throw new Error("준비해 둔 단어장 파일을 찾지 못했어요. 새로고침해 주세요.");
+    return JSON.parse(t);
+  }
+  async saveDraft(d, message) {
+    const list = (await this.drafts()).filter(x => x.id !== d.id);
+    list.push({ id: d.id, cls: d.cls, date: d.date, title: d.title, n: d.words.length, saved: d.saved });
+    list.sort((a, b) => a.date.localeCompare(b.date) || a.saved.localeCompare(b.saved));
+    await this.gh.commit({ "drafts/index.json": JSON.stringify({ drafts: list }, null, 1) + "\n", [`drafts/${d.id}.json`]: JSON.stringify(d) + "\n" }, message);
+    return list;
+  }
+  async deleteDraft(id, message) {
+    const list = (await this.drafts()).filter(x => x.id !== id);
+    await this.gh.commit({ "drafts/index.json": JSON.stringify({ drafts: list }, null, 1) + "\n", [`drafts/${id}.json`]: null }, message);
+    return list;
+  }
+
   // 반에 쓰는 단어장 정하기 (id 가 없으면 연결 끊기). 다른 사람이 바꾼 것과 겹치지 않게 새로 읽어서 고친다.
   async setClassBook(code, id, message) {
     const idx = await this.index(true);
