@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=16";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=16";
-import { displayIpa } from "./g2p.js?v=16";
-import * as A from "./audio.js?v=16";
-import { Books, resolveRange, rangeHint } from "./books.js?v=16";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=17";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=17";
+import { displayIpa } from "./g2p.js?v=17";
+import * as A from "./audio.js?v=17";
+import { Books, resolveRange, rangeHint } from "./books.js?v=17";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -56,7 +56,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=16");
+    await engine.loadDict("app/dict-us.json?v=17");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -221,7 +221,7 @@ function laterListAt(entries, date, title, showFrom) {
     .sort((a, b) => b.date.localeCompare(a.date)).find(e => e.date > date) || null;
 }
 function lateMsg(e, date, showFrom) {
-  return `${showFrom ? "예약 시각이 되어도" : "올려도"} 반 주소 맨 위에 나오지 않고 지난 단어장에 들어가요. ${dayLabel(e.date)} “${e.title}” 단어장이 이 단어장(${dayLabel(date)})보다 날짜가 늦어서예요. 날짜를 시험 날짜로 바꿔 주세요. 그래도 올리려면 올리기를 누르세요.`;
+  return `${showFrom ? "예약 시각이 되어도" : "올려도"} 반 주소 맨 위에 나오지 않고 지난 단어장에 들어가요. ${dayLabel(e.date)} “${e.title}” 단어장이 이 단어장(${dayLabel(date)})보다 날짜가 늦어서예요. 날짜를 숙제 내는 날짜로 바꿔 주세요. 그래도 올리려면 올리기를 누르세요.`;
 }
 function updatePrevNow() {
   const e = classInfo.entries.find(x => x.href === $("prevSel").value);
@@ -371,7 +371,7 @@ async function publishDraft(meta, sc, btn, confirmed = false) {
     const warn = [];
     if (entries.some(e => e.date === d.date && e.title === d.title)) warn.push(`${c.name}에 ${dayLabel(d.date)} “${d.title}” 단어장이 이미 있어요. 올리면 그 단어장이 이 내용으로 바뀌어요.`);
     const later = laterListAt(entries, d.date, d.title, when.showFrom);
-    if (later) warn.push(lateMsg(later, d.date, when.showFrom).replace("날짜를 시험 날짜로 바꿔 주세요.", "날짜를 바꾸려면 고치기를 누르세요.").replace(" 그래도 올리려면 올리기를 누르세요.", ""));
+    if (later) warn.push(lateMsg(later, d.date, when.showFrom).replace("날짜를 숙제 내는 날짜로 바꿔 주세요.", "날짜를 바꾸려면 고치기를 누르세요.").replace(" 그래도 올리려면 올리기를 누르세요.", ""));
     if (warn.length) warn.push("그래도 올리려면 ‘그래도 올리기’를 누르세요.");
     if (!confirmed && warn.length) {
       busy = false; setBusy(false);
