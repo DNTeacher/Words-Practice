@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=17";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=17";
-import { displayIpa } from "./g2p.js?v=17";
-import * as A from "./audio.js?v=17";
-import { Books, resolveRange, rangeHint } from "./books.js?v=17";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=18";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=18";
+import { displayIpa } from "./g2p.js?v=18";
+import * as A from "./audio.js?v=18";
+import { Books, resolveRange, rangeHint } from "./books.js?v=18";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -49,14 +49,14 @@ async function init() {
   loadDrafts();
   restoreDraft();
   if (!$("date").value) $("date").value = today();
-  if (!titleTouched) $("title").value = autoTitle($("date").value);
+  if (!titleTouched) $("title").value = "";  // 비워 두면 올릴 때 "○월 ○일 영어 단어"로 (다음 시험 칸)
   onClassChange();
 
   pages.load().catch(e => showErr("페이지 틀을 불러오지 못했어요: " + e.message));
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=17");
+    await engine.loadDict("app/dict-us.json?v=18");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -127,7 +127,7 @@ async function onClassChange() {
 $("cls").addEventListener("change", () => { setEditing(null); delMsg(""); saveDraft(); onClassChange(); clearDone(); });
 $("date").addEventListener("change", () => {
   if (editing && editing.date !== $("date").value) setEditing(null);
-  if (!titleTouched) $("title").value = autoTitle($("date").value); saveDraft(); clearDone();
+  saveDraft(); clearDone();
 });
 
 // 불러온 단어장을 고치는 중이면 눈에 보이게 (올리면 그 단어장이 바뀐다는 것을 알 수 있게)
@@ -505,7 +505,7 @@ async function importRange(confirmed = false) {
   let titleNote = "";
   if (!titleTouched || $("title").value === lastRangeTitle) {
     $("title").value = rng; lastRangeTitle = rng; titleTouched = true;
-    titleNote = ` 제목도 “${rng}”${ro(rng)} 넣었어요.`;
+    titleNote = ` 다음 시험 칸도 “${rng}”${ro(rng)} 채웠어요.`;
   }
   saveLastRange(c.code, rng); saveDraft(); clearDone(); showErr("");
   bookMsg("ok", `✓ ${rng}에서 단어 ${r.items.length}개를 가져왔어요.${titleNote} 고칠 게 있으면 아래 2번 칸에서 고친 다음 발음 만들기를 눌러 주세요.`);
@@ -803,14 +803,14 @@ async function publish(confirmed = {}) {
   // 불러온 단어장의 제목을 바꿨으면, 그 단어장을 바꿀지 새로 추가할지 묻는다
   // (2026-11-01: Day 6 을 불러온 화면에 Day 7 을 넣어 올렸더니 Day 6 이 사라진 일이 있었음)
   if (editingThis && title !== editing.title && !confirmed.mode) {
-    return askChoice(`불러온 “${editing.title}” 단어장의 제목을 “${title}”(으)로 바꿨어요. 어떻게 올릴까요?`, [
+    return askChoice(`불러온 “${editing.title}” 단어장의 다음 시험 칸을 “${title}”${ro(title)} 바꿨어요. 어떻게 올릴까요?`, [
       [`“${editing.title}” 그대로 두고 새로 추가`, () => publish({ ...confirmed, mode: "add" })],
       [`“${editing.title}” 대신 바꾸기`, () => publish({ ...confirmed, mode: "replace" }), true]]);
   }
   if (confirmed.mode === "add") editingThis = false;
   // 같은 날짜에 제목이 같은 단어장이 있으면 바꿀지 묻는다 (제목이 다르면 새 단어장으로 추가)
   if (!editingThis && classInfo.code === c.code && classInfo.entries.some(e => e.date === date && e.title === title) && !confirmed.overwrite) {
-    return askConfirm(`${c.name}에 ${dayLabel(date)} “${title}” 단어장이 이미 있어요. 새 것으로 바꿀까요? (다른 단어장으로 추가하려면 제목을 바꿔 주세요)`, () => publish({ ...confirmed, overwrite: true }));
+    return askConfirm(`${c.name}에 ${dayLabel(date)} “${title}” 단어장이 이미 있어요. 새 것으로 바꿀까요? (다른 단어장으로 추가하려면 다음 시험 칸을 바꿔 주세요)`, () => publish({ ...confirmed, overwrite: true }));
   }
   const when = dockSched.get();
   if (when.error) return showErr(when.error);
@@ -895,7 +895,7 @@ function clearDone() { $("doneCard").hidden = true; }
 function resetForNext() {
   setEditing(null); setDraftEditing(null); dockSched.set(null);
   items = []; $("list").replaceChildren(); $("resultCard").hidden = true; $("dock").hidden = true; clearDone();
-  $("words").value = ""; titleTouched = false; $("title").value = autoTitle($("date").value); saveDraft();
+  $("words").value = ""; titleTouched = false; $("title").value = ""; saveDraft();
   window.scrollTo({ top: 0, behavior: "smooth" }); $("words").focus();
 }
 
