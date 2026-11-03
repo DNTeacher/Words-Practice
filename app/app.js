@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=14";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=14";
-import { displayIpa } from "./g2p.js?v=14";
-import * as A from "./audio.js?v=14";
-import { Books, resolveRange, rangeHint } from "./books.js?v=14";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=15";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=15";
+import { displayIpa } from "./g2p.js?v=15";
+import * as A from "./audio.js?v=15";
+import { Books, resolveRange, rangeHint } from "./books.js?v=15";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -53,7 +53,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=14");
+    await engine.loadDict("app/dict-us.json?v=15");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -119,7 +119,7 @@ async function onClassChange() {
   }
 }
 
-$("cls").addEventListener("change", () => { setEditing(null); saveDraft(); onClassChange(); clearDone(); });
+$("cls").addEventListener("change", () => { setEditing(null); delMsg(""); saveDraft(); onClassChange(); clearDone(); });
 $("date").addEventListener("change", () => {
   if (editing && editing.date !== $("date").value) setEditing(null);
   if (!titleTouched) $("title").value = autoTitle($("date").value); saveDraft(); clearDone();
@@ -150,6 +150,34 @@ $("prevLoad").addEventListener("click", async () => {
     $("words").focus();
   } catch (e) { showErr(e.message); }
 });
+
+// ---------- 잘못 올린 단어장 지우기 ----------
+function delMsg(cls, ...kids) { const b = $("delAsk"); b.className = "delask" + (cls ? " " + cls : ""); b.replaceChildren(...kids); b.hidden = !kids.length; }
+$("prevDel").addEventListener("click", () => {
+  const c = curClass(), href = $("prevSel").value;
+  const e = classInfo.entries.find(x => x.href === href);
+  if (!c || !e) return;
+  if (!gh) return delMsg("", "지우려면 먼저 설정에서 GitHub 열쇠를 넣어 주세요.");
+  delMsg("", `${dayLabel(e.date)} “${e.title}” 단어장을 지울까요? 반 주소에서 사라지고, 이 단어장만 주소로 들어오면 반 주소로 넘어가요.`,
+    h("button", { class: "btn small", type: "button", onclick: () => deleteSet(c, e) }, "지우기"),
+    h("button", { class: "btn quiet small", type: "button", onclick: () => delMsg("") }, "취소"));
+});
+$("prevSel").addEventListener("change", () => delMsg(""));
+async function deleteSet(c, e) {
+  if (busy) return;
+  busy = true; setBusy(true); delMsg("", "지우는 중…");
+  try {
+    const cur = await gh.getText(`${c.code}.html`);
+    const r = await pages.buildDeleteFiles(c, e.href, cur, { getData: href => gh.getText(href) });
+    await gh.commit(r.files, `${c.name} ${e.title} 지움 (단어장 앱)`);
+    if (editing && editing.href === e.href) setEditing(null);
+    clearDone();
+    await onClassChange();
+    delMsg("ok", `✓ ${dayLabel(e.date)} “${e.title}” 단어장을 지웠어요. 1~2분 뒤 학생 주소에 반영돼요.` + (r.left ? "" : " 이제 이 반에는 올라온 단어장이 없어요."));
+  } catch (err) {
+    console.error(err); delMsg("", "지우지 못했어요: " + (err.message || err));
+  } finally { busy = false; setBusy(false); }
+}
 
 // ---------- 단어장에서 가져오기 (비공개 저장소 Words-Books 의 정리본) ----------
 async function loadBookIndex() {

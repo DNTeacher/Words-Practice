@@ -62,7 +62,7 @@ export class Pages {
   }
 
   // 주소가 바뀐 옛 주소에 남겨 두는 안내 페이지: 열자마자 새 주소로 넘어간다
-  redirectPage(href) {
+  redirectPage(href, { title = "주소가 바뀌었어요", text = "단어장 주소가 바뀌었어요. 새 주소로 이동하고 있어요.", link = "새 주소로 가기 ›" } = {}) {
     const h = esc(href), full = esc(SITE + href);
     return `<!doctype html>
 <html lang="ko">
@@ -73,12 +73,12 @@ export class Pages {
 <meta name="wp-redirect" content="${h}">
 <meta http-equiv="refresh" content="0; url=${h}">
 <link rel="canonical" href="${full}">
-<title>주소가 바뀌었어요</title>
+<title>${esc(title)}</title>
 <script>location.replace(${JSON.stringify(href)});</script>
 </head>
 <body style="margin:0;padding:24px;font:16px/1.6 system-ui,sans-serif;background:#EEF2F8;color:#15213B">
-<p>단어장 주소가 바뀌었어요. 새 주소로 이동하고 있어요.</p>
-<p><a href="${h}" style="color:#2A55D3;font-weight:700">새 주소로 가기 ›</a></p>
+<p>${esc(text)}</p>
+<p><a href="${h}" style="color:#2A55D3;font-weight:700">${esc(link)}</a></p>
 </body>
 </html>
 `;
@@ -131,7 +131,28 @@ export class Pages {
     const entry = { href, date: set.date, title: set.title, n: set.words.length, words: set.words };
     const at = entries.findIndex(e => e.href === href);
     if (at >= 0) entries[at] = entry; else entries.push(entry);
-    // 날짜 최신순 (같은 날짜 안에서는 올린 순서 그대로)
+    const classHtml = await this._classFromEntries(cls, entries, getData);
+    return {
+      files: { [href]: this.datedPage(cls, href, set), [`${cls.code}.html`]: classHtml },
+      file: href, replacing, sameDayCount: entries.filter(e => e.date === set.date).length,
+    };
+  }
+
+  // 잘못 올린 단어장 지우기 (2026-11-03): 반 페이지에서 빼고, 그 단어장 주소에는 반 주소로 넘겨 주는 안내 페이지를 남긴다
+  // (학생이 예전에 받은 '이 단어장만' 주소로 들어와도 빈 화면 대신 우리 반 최신 단어장이 나오게). 저장소 기록에는 남아 있어 되살릴 수 있다.
+  async buildDeleteFiles(cls, href, currentClassHtml, { getData = null } = {}) {
+    if (!datedRe(cls.code).test(href)) throw new Error("이 반의 단어장 주소가 아니에요.");
+    const entries = this.entriesOf(cls, currentClassHtml);
+    const gone = entries.find(e => e.href === href);
+    if (!gone) throw new Error("반 페이지에서 이 단어장을 찾지 못했어요. 새로고침한 뒤 다시 해 주세요.");
+    const rest = entries.filter(e => e !== gone);
+    const notice = this.redirectPage(`${cls.code}.html`, { title: "지운 단어장이에요", text: "이 단어장은 선생님이 지웠어요. 우리 반 단어장으로 이동하고 있어요.", link: "우리 반 단어장 보기 ›" });
+    return { files: { [href]: notice, [`${cls.code}.html`]: await this._classFromEntries(cls, rest, getData) }, removed: gone, left: rest.length };
+  }
+
+  // 단어장 목록 → 반 페이지 (날짜 최신순, 같은 날짜 안에서는 올린 순서 그대로). 하나도 없으면 빈 반 페이지.
+  async _classFromEntries(cls, entries, getData) {
+    if (!entries.length) return this.emptyClassPage(cls);
     const order = new Map(entries.map((e, i) => [e, i]));
     entries.sort((x, y) => y.date.localeCompare(x.date) || order.get(x) - order.get(y));
     const latestDate = entries[0].date;
@@ -142,10 +163,7 @@ export class Pages {
       e.words = d ? d.words : [];
     }
     const past = entries.filter(e => e.date !== latestDate).map(e => ({ href: e.href, title: e.title, n: e.n, date: e.date }));
-    return {
-      files: { [href]: this.datedPage(cls, href, set), [`${cls.code}.html`]: this.classPage(cls, latestDate, latest, past) },
-      file: href, replacing, sameDayCount: entries.filter(e => e.date === set.date).length,
-    };
+    return this.classPage(cls, latestDate, latest, past);
   }
 }
 
