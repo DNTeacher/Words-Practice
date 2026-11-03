@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=13";
-import { Pages, GitHub, SITE, readData, setsOf, wordCount, datedRe } from "./site.js?v=13";
-import { displayIpa } from "./g2p.js?v=13";
-import * as A from "./audio.js?v=13";
-import { Books, resolveRange, rangeHint } from "./books.js?v=13";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=14";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=14";
+import { displayIpa } from "./g2p.js?v=14";
+import * as A from "./audio.js?v=14";
+import { Books, resolveRange, rangeHint } from "./books.js?v=14";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -53,7 +53,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=13");
+    await engine.loadDict("app/dict-us.json?v=14");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -830,7 +830,7 @@ function qrBox(c, url) {
 async function saveQr(c) {
   if (!window.qrcode) return;
   try { await document.fonts.load('700 64px "IBM Plex Sans KR"'); await document.fonts.load('400 38px "IBM Plex Sans KR"'); } catch (e) {}
-  const url = `${SITE}${c.code}.html`, title = `${c.name} 영어 단어장`;
+  const url = `${SITE}${c.code}.html`, title = `${BRAND} · ${c.name}`;
   const qr = window.qrcode(0, "M"); qr.addData(url); qr.make();
   const n = qr.getModuleCount(), quiet = 2, size = 760, cell = size / (n + 2 * quiet);
   const W = 1080, H = 200 + size + 140, cv = document.createElement("canvas"); cv.width = W; cv.height = H;

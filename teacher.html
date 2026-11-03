@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<title>단어장 만들기</title>
+<title>들어Voca 선생님</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
@@ -32,7 +32,8 @@ body { margin: 0; background: var(--paper); color: var(--ink); font: 15px/1.55 v
 button, input, select, textarea { font: inherit; color: inherit; }
 .wrap { max-width: 980px; margin: 0 auto; padding: 0 20px 120px; }
 header.top { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-block: 20px 12px; }
-header.top h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; }
+header.top h1 { margin: 0; font-size: 24px; letter-spacing: -.01em; display: flex; align-items: center; gap: 8px; }
+header.top h1 .who { font-size: 13px; font-weight: 700; color: var(--ink-soft); background: var(--sheet); border-radius: 999px; padding: 2px 10px; box-shadow: var(--shadow); letter-spacing: 0; }
 header.top .sub { margin: 2px 0 0; color: var(--ink-soft); font-size: 14px; }
 .tools { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .pill { display: inline-flex; align-items: center; gap: 8px; border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 500; background: var(--sheet); box-shadow: var(--shadow); white-space: nowrap; }
@@ -167,7 +168,7 @@ a { color: var(--accent); }
 <div class="wrap">
   <header class="top">
     <div>
-      <h1>단어장 만들기</h1>
+      <h1>들어Voca <span class="who">선생님</span></h1>
       <p class="sub">단어를 붙여넣으면 AI가 발음을 만들고, 음성인식으로 한 번 더 확인해요.</p>
     </div>
     <div class="tools">
@@ -271,6 +272,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=13"></script>
+<script type="module" src="app/app.js?v=14"></script>
 </body>
 </html>

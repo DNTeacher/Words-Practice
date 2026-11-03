@@ -5,6 +5,8 @@
 
 export const SITE = "https://dnteacher.github.io/Words-Practice/";
 const OWNER = "DNTeacher", REPO = "Words-Practice", BRANCH = "main";
+// 서비스 이름 (2026-11-03 선생님이 정함). Python make_site.py 의 BRAND 와 같아야 한다.
+export const BRAND = "들어Voca";
 
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const DATA_RE = /const DATA = ([^\n]*);\n/;
@@ -50,13 +52,13 @@ export class Pages {
   }
   rootIndex(classes) {
     const items = classes.map(c => `    <li><a href="${esc(c.code)}.html"><span>${esc(c.name)}</span><span class="go" aria-hidden="true">›</span></a></li>`).join("\n");
-    const body = `  <h1>영어 단어장</h1>\n  <p class="hint">우리 반을 누르면 외울 단어와 발음이 나와요.</p>\n  <ul class="grid">\n${items}\n  </ul>`;
-    return this.listPage({ title: "영어 단어장", desc: "반을 고르면 외울 단어와 발음이 나와요", url: SITE, body });
+    const body = `  <h1>${BRAND}</h1>\n  <p class="hint">우리 반을 누르면 외울 단어와 발음이 나와요.</p>\n  <ul class="grid">\n${items}\n  </ul>`;
+    return this.listPage({ title: BRAND, desc: "반을 고르면 외울 단어와 발음이 나와요", url: SITE, body });
   }
   emptyClassPage(c) {
     const n = esc(c.name);
-    const body = `  <p class="eyebrow">${n} 영어 단어</p>\n  <h1>${n} 영어 단어장</h1>\n  <p class="hint">이 주소에서 우리 반 단어를 들을 수 있어요.</p>\n  <div class="empty">\n    <b>아직 올라온 단어장이 없어요</b>\n    <p>선생님이 단어장을 올리면 이 주소를 열자마자 바로 나와요.</p>\n  </div>\n  <a class="back" href="index.html">‹ 다른 반 보기</a>`;
-    return this.listPage({ title: `${c.name} 영어 단어장`, desc: "단어를 누르면 발음이 나와요", url: SITE + c.code + ".html", body });
+    const body = `  <p class="eyebrow">${BRAND}</p>\n  <h1>${n} 단어장</h1>\n  <p class="hint">이 주소에서 우리 반 단어를 들을 수 있어요.</p>\n  <div class="empty">\n    <b>아직 올라온 단어장이 없어요</b>\n    <p>선생님이 단어장을 올리면 이 주소를 열자마자 바로 나와요.</p>\n  </div>\n  <a class="back" href="index.html">‹ 다른 반 보기</a>`;
+    return this.listPage({ title: `${BRAND} · ${c.name}`, desc: "단어를 누르면 발음이 나와요", url: SITE + c.code + ".html", body });
   }
 
   // 주소가 바뀐 옛 주소에 남겨 두는 안내 페이지: 열자마자 새 주소로 넘어간다
@@ -88,14 +90,14 @@ export class Pages {
     const n = sets.reduce((k, s) => k + s.words.length, 0);
     const data = { date, title, sample: false, cls: cls.name, cls_code: cls.code, sets: sets.map(s => ({ href: s.href, title: s.title, words: s.words })), past };
     return this.studentPage(data, {
-      title: `${cls.name} 영어 단어장`,
+      title: `${BRAND} · ${cls.name}`,
       desc: sets.length > 1 ? `최신: ${title} (단어장 ${sets.length}개) · 단어 ${n}개` : `최신: ${title} · 단어 ${n}개`,
       url: SITE + cls.code + ".html",
     });
   }
   datedPage(cls, href, set) {
     return this.studentPage({ date: set.date, title: set.title, sample: false, words: set.words, cls: cls.name, cls_code: cls.code, home: `${cls.code}.html` }, {
-      title: `${cls.name} ${set.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${set.words.length}개`, url: SITE + href,
+      title: `${BRAND} · ${cls.name} ${set.title}`, desc: `단어를 누르면 발음이 나와요 · 단어 ${set.words.length}개`, url: SITE + href,
     });
   }
 

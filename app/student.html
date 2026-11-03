@@ -163,7 +163,7 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 <body>
 <div class="wrap">
   <header class="head">
-    <div class="eyebrow"><span id="cls">오늘의 영어 단어</span><span class="chip" id="sampleChip" hidden>예시</span></div>
+    <div class="eyebrow"><span id="cls">들어Voca</span><span class="chip" id="sampleChip" hidden>예시</span></div>
     <h1 id="title">영어 단어</h1>
     <div class="meta">
       <p class="hint" id="hint">단어 <b id="count">0</b>개 · 단어를 누르면 발음이 나와요</p>
@@ -206,7 +206,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   document.getElementById("count").textContent = allWords.length;
   if (multi) document.getElementById("hint").insertBefore(document.createTextNode("단어장 " + groups.length + "개 · "), document.getElementById("hint").firstChild);
   document.getElementById("sampleChip").hidden = !DATA.sample;
-  if (DATA.cls) document.getElementById("cls").textContent = DATA.cls + " 영어 단어";
+  if (DATA.cls) document.getElementById("cls").textContent = "들어Voca · " + DATA.cls;
 
   // 반 주소에서 열었을 때: 아래에 지난 단어장 목록
   if (Array.isArray(DATA.past) && DATA.past.length) {
