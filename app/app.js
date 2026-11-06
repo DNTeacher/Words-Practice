@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=18";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=18";
-import { displayIpa } from "./g2p.js?v=18";
-import * as A from "./audio.js?v=18";
-import { Books, resolveRange, rangeHint } from "./books.js?v=18";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=19";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=19";
+import { displayIpa } from "./g2p.js?v=19";
+import * as A from "./audio.js?v=19";
+import { Books, resolveRange, rangeHint } from "./books.js?v=19";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -56,7 +56,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=18");
+    await engine.loadDict("app/dict-us.json?v=19");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -684,13 +684,16 @@ function renderItem(it) {
   else if (st === "ok") chips.append(h("span", { class: "chip ok" }, it.override ? "✓ 직접 확인함" : "✓ 확인됨"));
   else chips.append(h("span", { class: "chip warn" }, "직접 들어 보세요"));
   if (it.source === "espeak") chips.append(h("span", { class: "chip bad" }, "사전에 없는 단어"));
-  if (it.variants && it.guessed) chips.append(h("span", { class: "chip info" }, "뜻을 보고 발음을 골랐어요"));
+  const altWord = !!(it.variants && it.variants.some(v => v.alt));  // 뜻은 같고 발음만 두 가지 (o'clock)
+  if (it.variants && it.guessed && !altWord) chips.append(h("span", { class: "chip info" }, "뜻을 보고 발음을 골랐어요"));
+  if (altWord) chips.append(h("span", { class: "chip info" }, "발음을 고를 수 있어요"));
   if (it.audio && it.variantUsed && it.variantUsed !== "plain") chips.append(h("span", { class: "chip info" }, it.manualPick ? `고른 소리 (소리 ${VARIANTS.findIndex(v => v.id === it.variantUsed) + 1})` : it.autoFixed ? "소리를 자동으로 고쳤어요" : "예전에 고른 소리"));
   pron.append(chips);
 
   const notes = [];
   if (it.source === "espeak") notes.push(h("div", { class: "note" }, "철자가 맞는지 확인해 주세요. 맞으면 그대로 두셔도 돼요."));
-  if (it.variants && it.guessed) notes.push(h("div", { class: "note" }, "뜻에 따라 발음이 달라지는 단어예요. 다르면 다른 발음을 눌러 주세요."));
+  if (altWord) notes.push(h("div", { class: "note" }, `사전 발음이 기본이에요. 또박또박 들려주려면 “${it.variants[1].label}”을 눌러 주세요.`));
+  else if (it.variants && it.guessed) notes.push(h("div", { class: "note" }, "뜻에 따라 발음이 달라지는 단어예요. 다르면 다른 발음을 눌러 주세요."));
   if (it.check && it.check.normal && it.check.normal.ok && it.check.normal.heard && plain(it.check.normal.heard) !== plain(it.word)) {
     notes.push(h("div", { class: "note" }, "음성인식이 ", h("b", {}, `“${it.check.normal.heard}”`), "로 받아적었어요 (같은 소리)."));
   }

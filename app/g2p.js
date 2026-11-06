@@ -144,7 +144,7 @@ export class Lexicon {
     if (toks.length !== 1) return null;
     const key = toks[0];
     const extra = EXTRA[key.toLowerCase()];
-    if (extra) return extra.map(e => ({ ps: e.ps, tags: [], label: e.label, keys: e.keys }));
+    if (extra) return extra.map(e => ({ ps: e.ps, tags: [], label: e.label, keys: e.keys, ...(e.alt ? { alt: true } : {}) }));
     let e = this.entry(key);
     if (e === undefined) e = this.entry(key.toLowerCase());
     if (!e || typeof e !== "object") return null;
@@ -183,6 +183,9 @@ const EXTRA = {
   lives: [{ ps: "lˈIvz", label: "삶·목숨들", keys: ["삶", "목숨", "생명"] }, { ps: "lˈɪvz", label: "살다", keys: ["살다", "산다", "살고"] }],
   tears: [{ ps: "tˈɪɹz", label: "눈물", keys: ["눈물"] }, { ps: "tˈɛɹz", label: "찢다", keys: ["찢"] }],
   winds: [{ ps: "wˈɪndz", label: "바람", keys: ["바람"] }, { ps: "wˈIndz", label: "감다", keys: ["감다", "감는", "구불"] }],
+  // 뜻은 같고 발음만 두 가지 (alt): 사전 발음이 기본, 선생님이 또박또박 발음을 고를 수 있다 (2026-11-06 선생님 요청)
+  // o'clock: 미국 사전 /əˈklɑk/(어클락). 철자 시험에서 "a clock"으로 쓰지 않게 "오클락"도 고를 수 있게. "Oklˈɑk"(강세 없음)은 "Black"으로 들려 ˌO 로.
+  "o'clock": [{ ps: "əklˈɑk", label: "어클락 (사전 발음)", keys: [], alt: true }, { ps: "ˌOklˈɑk", label: "오클락 (또박또박)", keys: [], alt: true }],
 };
 
 // 한국어 뜻으로 어떤 발음인지 추측한다 (선생님이 바꿀 수 있음).
