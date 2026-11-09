@@ -130,6 +130,8 @@ export class Lexicon {
         const lw = t.toLowerCase();
         if (lw === "a") ps = "ɐ";
         else if (lw === "an") ps = "ɐn";
+        // used to (~하곤 했다), be used to (~에 익숙하다): /juːst/ (misaki 와 같은 규칙, 2026-11-09)
+        else if (lw === "used" && (toks[i + 1] || "").toLowerCase() === "to") ps = this.word(t, "VBD");
       }
       ps = ps || this.word(t, toks.length === 1 ? tag : null);
       if (ps == null) missing.push(t); else parts.push(ps);

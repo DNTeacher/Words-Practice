@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=20";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=20";
-import { displayIpa } from "./g2p.js?v=20";
-import * as A from "./audio.js?v=20";
-import { Books, resolveRange, rangeHint } from "./books.js?v=20";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=21";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=21";
+import { displayIpa } from "./g2p.js?v=21";
+import * as A from "./audio.js?v=21";
+import { Books, resolveRange, rangeHint } from "./books.js?v=21";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -56,7 +56,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=20");
+    await engine.loadDict("app/dict-us.json?v=21");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
