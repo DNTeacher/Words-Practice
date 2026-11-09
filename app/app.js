@@ -1,9 +1,9 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=19";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=19";
-import { displayIpa } from "./g2p.js?v=19";
-import * as A from "./audio.js?v=19";
-import { Books, resolveRange, rangeHint } from "./books.js?v=19";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=20";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=20";
+import { displayIpa } from "./g2p.js?v=20";
+import * as A from "./audio.js?v=20";
+import { Books, resolveRange, rangeHint } from "./books.js?v=20";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -56,7 +56,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=19");
+    await engine.loadDict("app/dict-us.json?v=20");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -437,8 +437,16 @@ async function loadBookIndex() {
 function bookMsg(cls, ...kids) {
   const m = $("bookMsg"); m.className = "fmsg " + cls; m.replaceChildren(...kids); m.hidden = !kids.length;
 }
+// 지난번 범위는 반·단어장마다 ("e5b|bricks-voca-2300"), 반마다 마지막에 쓴 단어장 ("e5b|book")도 기억 (반에 단어장이 여럿일 때)
 const lastRanges = () => { try { return JSON.parse(store.get(LS.range) || "{}"); } catch (e) { return {}; } };
-function saveLastRange(code, rng) { const o = lastRanges(); o[code] = rng; store.set(LS.range, JSON.stringify(o)); }
+function saveLastRange(code, id, rng) { const o = lastRanges(); o[`${code}|${id}`] = rng; o[`${code}|book`] = id; store.set(LS.range, JSON.stringify(o)); }
+const lastRangeOf = (code, id, single) => { const o = lastRanges(); return o[`${code}|${id}`] || (single ? o[code] : null) || null; };
+// 반에 단어장이 여럿이거나 다른 반 단어장을 쓸 때는 다음 시험 칸에 단어장 이름도 붙인다 ("Bricks 2300 - unit 1") → 같은 날 두 단어장이 같은 제목으로 겹치지 않게
+const bookShort = id => { const b = bookIdx && bookIdx.books[id]; return b ? (b.short || b.book.replace(/\s*\(.*?\)\s*/g, " ").replace(/\bVocabulary\b/, "").replace(/\s+/g, " ").trim()) : ""; };
+function titleFor(code, id, rng) {
+  const mine = ((bookIdx && bookIdx.classes[code]) || []).filter(x => bookIdx.books[x]);
+  return mine.length === 1 && mine[0] === id ? rng : `${bookShort(id)} - ${rng}`;
+}
 const posKey = (w, m) => `${String(w).replace(/[’‘]/g, "'").replace(/\s+/g, " ").trim().toLowerCase()}\t${String(m).replace(/\s+/g, " ").trim()}`;
 // 받침에 따라 "로/으로" (숫자는 읽는 소리로)
 function ro(word) {
@@ -465,8 +473,9 @@ function renderBookBox() {
   $("bookSel").replaceChildren(...mine.map(id => h("option", { value: id }, all[id].book)),
     ...(others.length ? [h("optgroup", { label: "다른 반 단어장" }, ...others.map(id => h("option", { value: id }, all[id].book)))] : []));
   $("bookRow").hidden = false;
-  const last = lastRanges()[c.code];
-  $("rangeIn").value = ""; $("rangeIn").placeholder = last ? `지난번: ${last}` : "예: Day 8";
+  const lastBook = lastRanges()[`${c.code}|book`];
+  if (lastBook && mine.includes(lastBook)) $("bookSel").value = lastBook;
+  $("rangeIn").value = "";
   updateBookHint();
 }
 async function updateBookHint() {
@@ -477,8 +486,9 @@ async function updateBookHint() {
     if ($("bookSel").value !== id) return;
     const hint = rangeHint(b);
     $("bookHint").replaceChildren("있는 범위: ", h("b", {}, hint.have), " · 예: " + hint.examples.join(" · "));
-    const c = curClass();
-    if (c && !lastRanges()[c.code]) $("rangeIn").placeholder = "예: " + hint.examples[0];
+    const c = curClass(), mine = c ? (bookIdx.classes[c.code] || []) : [];
+    const last = c ? lastRangeOf(c.code, id, mine.length === 1) : null;
+    $("rangeIn").placeholder = last ? `지난번: ${last}` : "예: " + hint.examples[0];
   } catch (e) { $("bookHint").textContent = "단어장을 읽지 못했어요: " + (e.message || e); }
 }
 $("bookSel").addEventListener("change", () => { bookMsg("info"); updateBookHint(); });
@@ -503,11 +513,12 @@ async function importRange(confirmed = false) {
   $("words").value = text;
   importedPos = new Map(r.items.filter(x => x.pos && x.pos.length).map(x => [posKey(x.word, x.meaning), x.pos]));
   let titleNote = "";
-  if (!titleTouched || $("title").value === lastRangeTitle) {
-    $("title").value = rng; lastRangeTitle = rng; titleTouched = true;
-    titleNote = ` 다음 시험 칸도 “${rng}”${ro(rng)} 채웠어요.`;
+  if (!titleTouched || !$("title").value.trim() || $("title").value === lastRangeTitle) {
+    const t = titleFor(c.code, id, rng);
+    $("title").value = t; lastRangeTitle = t; titleTouched = true;
+    titleNote = ` 다음 시험 칸도 “${t}”${ro(t)} 채웠어요.`;
   }
-  saveLastRange(c.code, rng); saveDraft(); clearDone(); showErr("");
+  saveLastRange(c.code, id, rng); saveDraft(); clearDone(); showErr("");
   bookMsg("ok", `✓ ${rng}에서 단어 ${r.items.length}개를 가져왔어요.${titleNote} 고칠 게 있으면 아래 2번 칸에서 고친 다음 발음 만들기를 눌러 주세요.`);
 }
 
