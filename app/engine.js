@@ -2,8 +2,8 @@
 // 단어마다 음성을 만들고, 음성인식으로 다시 받아적어 같은 소리인지 확인한다.
 // 무거운 AI 계산은 worker.js(따로 도는 일꾼)에서 한다 → 화면이 멈추지 않는다 (2026-10-30, 크롬 '페이지 응답 없음' 해결).
 
-import { Lexicon, guessVariant, espeakToKokoro, soundKey, speakable } from "./g2p.js?v=21";
-import * as A from "./audio.js?v=21";
+import { Lexicon, guessVariant, espeakToKokoro, soundKey, speakable } from "./g2p.js?v=22";
+import * as A from "./audio.js?v=22";
 
 const PHONEMIZER = "https://cdn.jsdelivr.net/npm/phonemizer@1.2.1/+esm";
 export const VOICE = "af_heart";
@@ -62,7 +62,7 @@ export class Engine {
 
   // AI 모델 불러오기 (일꾼 안에서). onProgress(0~1, 설명)
   async loadModels(onProgress = () => {}) {
-    this.worker = new Worker(new URL("./worker.js?v=21", import.meta.url), { type: "module" });
+    this.worker = new Worker(new URL("./worker.js?v=22", import.meta.url), { type: "module" });
     this.worker.onmessage = e => {
       const d = e.data;
       if (d.type === "progress") return onProgress(d.p, d.txt);
@@ -83,7 +83,8 @@ export class Engine {
   }
 
   async synth(ps, speed = 1) {
-    return (await this._call("synth", { ps, speed })).audio;
+    const a = (await this._call("synth", { ps, speed })).audio;
+    return A.S_ONSET.test(ps) ? A.clearSOnset(a) : a;  // spice·sky·street: 첫 s 에 섞인 목소리 빼기
   }
 
   async transcribe(a24) {

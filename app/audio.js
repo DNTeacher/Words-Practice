@@ -48,6 +48,54 @@ export function normalize(a, { peakDb = -1.5, targetRmsDb = -18 } = {}) {
 
 export function finish(a) { return normalize(trimAndPad(a)); }
 
+// ---------- s + p/t/k 로 시작하는 단어 (spice, space, sky, street) ----------
+// AI 음성은 첫 s 에 목소리를 섞어 "이스바이스(It's bice)"처럼 들리게 한다 (2026-11-11, spice).
+// s 소리(첫 소리 ~ p/t/k 를 막는 조용한 틈)에서 낮은 소리만 걸러 내면 깨끗한 s 가 된다.
+// 시험: 16단어 음성인식(Parakeet·Whisper) 맞음 17/32 → 30/32, 나빠진 단어 없음. wordvoice.py 의 clear_s_onset 과 같은 계산.
+export const S_ONSET = /^[ˈˌ]?s[ptk]/;
+const HP_Q = [0.5176381, 0.7071068, 1.9318517]; // 6차 버터워스
+function highpass(x, fc, sr) {
+  let y = Float32Array.from(x);
+  const w0 = 2 * Math.PI * fc / sr, cs = Math.cos(w0), sn = Math.sin(w0);
+  const run = (q, rev) => {
+    const al = sn / (2 * q), a0 = 1 + al;
+    const b0 = (1 + cs) / 2 / a0, b1 = -(1 + cs) / a0, b2 = b0, a1 = -2 * cs / a0, a2 = (1 - al) / a0;
+    let x1 = 0, x2 = 0, y1 = 0, y2 = 0;
+    const n = y.length;
+    for (let k = 0; k < n; k++) {
+      const i = rev ? n - 1 - k : k, v = y[i];
+      const o = b0 * v + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+      x2 = x1; x1 = v; y2 = y1; y1 = o; y[i] = o;
+    }
+  };
+  for (const q of HP_Q) run(q, false);   // 앞으로 한 번
+  for (const q of HP_Q) run(q, true);    // 뒤로 한 번 (소리 위치가 밀리지 않게)
+  return y;
+}
+export function clearSOnset(a, { sr = SR, cut = 2500 } = {}) {
+  const hop = Math.round(sr * 0.005), nf = Math.floor((a.length - hop) / hop);
+  if (nf < 20) return a;
+  const db = new Float32Array(nf);
+  let mx = -1e9;
+  for (let f = 0; f < nf; f++) {
+    let s = 0; for (let i = f * hop; i < f * hop + hop; i++) s += a[i] * a[i];
+    db[f] = 20 * Math.log10(Math.sqrt(s / hop) + 1e-9); if (db[f] > mx) mx = db[f];
+  }
+  let start = 0; while (start < nf && !(db[start] > mx - 40)) start++;
+  const lo = start + 6, hi = Math.min(start + 50, nf);
+  if (lo >= hi) return a;
+  let gap = lo, peak = -1e9;
+  for (let f = lo; f < hi; f++) if (db[f] < db[gap]) gap = f;
+  for (let f = start; f < gap; f++) if (db[f] > peak) peak = db[f];
+  if (!(db[gap] < peak - 10)) return a;   // p/t/k 앞의 조용한 틈이 뚜렷하지 않으면 그대로 둔다
+  const sEnd = gap * hop, xf = 2 * hop;
+  const h = highpass(a.subarray(0, Math.min(a.length, sEnd + xf)), cut, sr);
+  const out = Float32Array.from(a);
+  out.set(h.subarray(0, sEnd), 0);
+  for (let i = 0; i < xf && sEnd + i < h.length; i++) { const g = 1 - i / xf; out[sEnd + i] = h[sEnd + i] * g + a[sEnd + i] * (1 - g); }
+  return out;
+}
+
 // WSOLA: 음높이는 그대로, 빠르기만 tempo 배로 (tempo < 1 이면 느려짐).
 // win: 창 길이(초), search: 맞춤 탐색 범위(초).
 export function stretch(x, tempo, { win = 0.03, search = 0.012 } = {}) {
