@@ -1,10 +1,10 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=23";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=23";
-import { displayIpa } from "./g2p.js?v=23";
-import * as A from "./audio.js?v=23";
-import { Books, resolveRange, rangeHint } from "./books.js?v=23";
-import { setupListen } from "./listen-ui.js?v=23";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=24";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=24";
+import { displayIpa } from "./g2p.js?v=24";
+import * as A from "./audio.js?v=24";
+import { Books, resolveRange, rangeHint } from "./books.js?v=24";
+import { setupListen } from "./listen-ui.js?v=24";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -40,6 +40,12 @@ let listenUI = null;
 const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
+// 접었다 펴는 칸(준비해 둔 단어장 · 단어장에서 가져오기 · 지난 단어장 고치기)은 선생님이 마지막으로 둔 대로 (2026-11-14)
+for (const id of ["draftFold", "bookBox", "prevBox"]) {
+  const d = $(id), k = "wp-fold:" + id, v = store.get(k);
+  if (v === "1" || v === "0") d.open = v === "1";
+  d.addEventListener("toggle", () => store.set(k, d.open ? "1" : "0"));
+}
 init().catch(e => console.error(e));
 
 async function init() {
@@ -61,7 +67,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=23");
+    await engine.loadDict("app/dict-us.json?v=24");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -270,6 +276,10 @@ function setDraftEditing(v) {
 function renderDrafts() {
   const card = $("draftCard"), ul = $("draftList");
   card.hidden = !drafts.length;
+  // 접혀 있을 때 보이는 한 줄 요약: 개수 + 앞의 3개 이름
+  $("draftCount").textContent = `${drafts.length}개`;
+  $("draftPeek").replaceChildren(...drafts.slice(0, 3).map(d => h("span", {}, `${clsName(d.cls)} · ${d.title}`)),
+    ...(drafts.length > 3 ? [h("span", {}, `외 ${drafts.length - 3}개`)] : []));
   ul.replaceChildren(...drafts.map(d => {
     const li = h("li", {});
     const panel = h("div", { class: "panel", hidden: true });

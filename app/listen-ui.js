@@ -1,5 +1,5 @@
 // 선생님 앱: '누가 들었나요?' 칸 + 학생 이름 고치기 + 설정의 구글 시트 연결 (2026-11-13)
-import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=23";
+import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=24";
 
 const PENDING_KEY = "wp-listen-key-pending";
 
@@ -77,12 +77,12 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
         : h("td", {}, h("span", { class: "st none" }, "– 안 들음"));
       const t = short(st.last);
       return st.kind === "ok"
-        ? h("td", {}, h("span", { class: "st ok" }, "✓ 다 들음"), h("small", {}, `${st.heard}/${st.total}${t ? " · " + t : ""}`))
+        ? h("td", { title: `${st.heard}/${st.total} 단어` }, h("span", { class: "st ok" }, "✓ 다 들음"), t ? h("small", {}, t) : null)
         : h("td", {}, h("span", { class: "st part" }, `◐ ${st.heard}/${st.total}`), h("small", {}, t));
     };
     $("listenTable").append(h("div", { class: "lscroll" }, h("table", { class: "who" },
       h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "학생"), ...entries.map(e =>
-        h("th", { scope: "col", class: e.date === latest ? "cur" : null }, e.title, h("small", {}, `${dayLabel(e.date)} 숙제` + (e.date === latest ? " · 지금 보이는 단어장" : "")))))),
+        h("th", { scope: "col", class: e.date === latest ? "cur" : null }, e.title, h("small", {}, `${dayLabel(e.date)} 숙제`), e.date === latest ? h("small", { class: "now" }, "지금 보이는 단어장") : null)))),
       h("tbody", {}, ...names.map(s => h("tr", {}, h("th", { scope: "row", class: "nm" }, h("span", { lang: "en" }, s.en), s.ko ? h("small", {}, s.ko) : null), ...entries.map(e => cell(s, e))))))));
     // 지금 보이는 단어장(들) 요약
     for (const e of entries.filter(x => x.date === latest)) {

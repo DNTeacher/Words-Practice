@@ -23,7 +23,7 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 - 학생 페이지 틀의 원본은 `tools/template.html` → 저장소 폴더에서 `python3 tools/export_app_templates.py .` 로 `app/student.html`, `app/list-page.html` 생성 (`app/student.html`을 직접 고치지 말고 `tools/template.html`을 고친 뒤 내보내기). `tools/make_site.py`는 같은 틀을 쓰는 Python 판(예전 방식·비교용).
 
 **꼭 지킬 것**
-1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=23**. (GitHub Pages 캐시 10분 때문)
+1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=24**. (GitHub Pages 캐시 10분 때문)
 2. 비밀은 공개 저장소·학생 페이지 코드에 넣지 않는다: 선생님 GitHub 토큰은 선생님 브라우저 localStorage(`wp-gh-token`)에만, 듣기 기록 KEY는 `Words-Books/listen.json`에만. 한글 학생 이름은 `Words-Books/students.json`에만, 공개 `listen.json`에는 영어 이름만.
 3. 날짜 칸 = **숙제 날짜**. 반 주소 맨 위는 가장 최근 숙제 날짜의 단어장. 같은 날짜+같은 제목(다음 시험 칸) = 바꾸기, 제목이 다르면 여러 개.
 4. 선생님이 준 단어장 내용(뜻 등)은 함부로 고치지 않는다. 영어 철자 오타만 고치고 단어장 JSON의 `fixes`에 기록, 선생님께 알린다.
@@ -49,7 +49,14 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 
 ---
 
-## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-13)
+## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-14)
+
+### v=24 (11-14) 선생님 앱 한 화면 배치 (넓은 화면에서 페이지 스크롤 없음) + 글씨·칸 읽기 쉽게
+| 파일 | 바뀐 부분 |
+|---|---|
+| `teacher.html` | 화면 너비 1100px 이상·높이 600px 이상이면 `.shell` 배치: 왼쪽 `.side` = 누가 들었나요?(늘 펼침), 오른쪽 `.work` = 맨 위 준비해 둔 단어장(접으면 한 줄 요약) + `.cols` 두 칸(`.col.make` 1·2번 / `.col.check` 올린 결과 `#doneCard`·빈 안내 `#resultEmpty`·3번). 칸마다 그 칸 안에서만 스크롤, 아래 올리기 막대는 고정 대신 맨 아래 줄. 좁은 화면은 예전 한 줄 배치 그대로. '단어장에서 가져오기'·'지난 단어장 고치기'·'준비해 둔 단어장'은 `<details>`(접었다 펴기). 칸이 좁으면 container query 로 3번 단어 줄을 촘촘하게. 회색 글씨 조금 진하게(`--ink-soft`), 설명 글씨 13→14px, 입력 칸은 흰 바탕 + 진한 테두리(`--line`) |
+| `app/app.js` | 접었다 편 상태 기억(localStorage `wp-fold:draftFold/bookBox/prevBox`), `renderDrafts()`에서 접힌 줄 요약(`#draftCount`, `#draftPeek`) |
+| `app/listen-ui.js` | 표 칸 줄임: 다 들음 칸은 시각만(단어 수는 마우스를 올리면), 단어장 제목 아래 '지금 보이는 단어장'을 따로 한 줄 |
 
 ### v=23 (11-13) 누가 들었나요? — 학생 이름 고르기 + 끝까지 들은 단어 기록 (구글 시트)
 커밋: Words-Practice `65d95e3`, `f4415e2`(선생님 앱이 연결하면서 만든 커밋), Words-Books `b984fba`, `38d0ffe`(앱이 만든 커밋)
