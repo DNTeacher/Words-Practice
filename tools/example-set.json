@@ -1,0 +1,23 @@
+{
+  "date": "2026-10-29",
+  "title": "10월 29일 영어 단어",
+  "sample": true,
+  "words": [
+    {"word": "Wednesday", "meaning": "수요일"},
+    {"word": "February", "meaning": "2월"},
+    {"word": "library", "meaning": "도서관"},
+    {"word": "hospital", "meaning": "병원"},
+    {"word": "vegetable", "meaning": "채소"},
+    {"word": "favorite", "meaning": "가장 좋아하는"},
+    {"word": "beautiful", "meaning": "아름다운"},
+    {"word": "comfortable", "meaning": "편안한"},
+    {"word": "weather", "meaning": "날씨"},
+    {"word": "knife", "meaning": "칼"},
+    {"word": "live", "meaning": "살다", "pos": "VERB", "note": "살다(동사) → /lɪv/, 살아 있는(형용사)이면 /laɪv/"},
+    {"word": "read", "meaning": "읽었다 (read의 과거형)", "pos": "VBD", "note": "과거형 → /rɛd/"},
+    {"word": "close", "meaning": "닫다", "pos": "VERB", "note": "닫다(동사) → /kloʊz/, 가까운(형용사)이면 /kloʊs/"},
+    {"word": "wind", "meaning": "바람", "pos": "DEFAULT", "note": "바람(명사) → /wɪnd/, 감다(동사)이면 /waɪnd/"},
+    {"word": "tear", "meaning": "눈물", "pos": "DEFAULT", "note": "눈물(명사) → /tɪr/, 찢다(동사)이면 /tɛr/"},
+    {"word": "present", "meaning": "선물", "pos": "DEFAULT", "note": "선물(명사) → /ˈprɛzənt/, 발표하다(동사)이면 /prɪˈzɛnt/"}
+  ]
+}
