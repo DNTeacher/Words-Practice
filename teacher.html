@@ -186,6 +186,40 @@ dialog .inline input { flex: 1 1 220px; border: 1px solid var(--rule); backgroun
 .classes li code { color: var(--ink-soft); font-size: 12.5px; overflow-wrap: anywhere; }
 a { color: var(--accent); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* 누가 들었나요? (2026-11-13) */
+#listenCard h2 .n { font-size: 15px; }
+.lrow { display: flex; align-items: center; gap: 8px 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.lrow .lf { display: inline-flex; align-items: center; gap: 8px; font-weight: 700; font-size: 14px; }
+.lrow .lf select { width: auto; min-width: 170px; }
+.lrow .lnames { margin-left: auto; font-size: 14px; color: var(--ink-soft); word-break: keep-all; }
+.lrow .lnames b { color: var(--ink); font-family: var(--f-word); font-size: 15px; }
+.sumline { display: grid; gap: 6px; margin: 0 0 12px; font-size: 14px; }
+.sumline:empty { display: none; }
+.sumline .sl { display: flex; gap: 6px 8px; flex-wrap: wrap; align-items: center; }
+.sumline .k { font-weight: 700; }
+.lscroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table.who { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 14px; }
+table.who th, table.who td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+table.who thead th { background: var(--paper); border-bottom: 0; min-width: 150px; }
+table.who thead th:first-child { border-radius: 10px 0 0 10px; min-width: 0; }
+table.who thead th:last-child { border-radius: 0 10px 10px 0; }
+table.who thead th small, table.who td small, table.who th.nm small { display: block; font-weight: 400; color: var(--ink-soft); font-size: 12px; margin-top: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+table.who thead th.cur { box-shadow: inset 0 -3px 0 var(--accent); }
+table.who th.nm { white-space: nowrap; }
+table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 16px; }
+.st { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: 13px; white-space: nowrap; }
+.st.ok { background: var(--ok-bg); color: var(--ok); }
+.st.part { background: var(--warn-bg); color: var(--warn); }
+.st.none { background: var(--bad-bg); color: var(--bad); }
+.st.pre { background: var(--paper); color: var(--ink-soft); font-weight: 500; }
+.lempty { margin: 0; padding: 14px; border-radius: 10px; background: var(--paper); color: var(--ink-soft); font-size: 14px; }
+.lsetup { margin: 0 0 12px; padding: 12px 14px; border-radius: 10px; background: var(--chip); font-size: 14px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.namesedit { margin: 0 0 12px; padding: 14px; border-radius: 12px; background: var(--paper); }
+.namesedit textarea { min-height: 170px; font-size: 15px; }
+.lfoot { display: flex; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--ink-soft); word-break: keep-all; }
+.lfoot a, #listenSetSheet { color: var(--accent); font-weight: 700; }
+#scriptBox { width: 100%; min-height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, monospace; }
 </style>
 </head>
 <body>
@@ -205,6 +239,27 @@ a { color: var(--accent); }
     <p><b>처음 한 번만:</b> 학생 주소에 올리려면 GitHub 열쇠(토큰)를 넣어야 해요. 그 전에도 발음 만들기와 미리 듣기는 할 수 있어요.</p>
     <button class="btn small" id="bannerSettings" type="button">열쇠 넣기</button>
   </div>
+
+  <section class="card" id="listenCard" aria-labelledby="sl" hidden>
+    <h2 id="sl"><span class="n">✓</span> 누가 들었나요? <span class="hint">학생이 단어를 끝까지 들으면 기록돼요 · 1~2분 늦게 보일 수 있어요</span></h2>
+    <div class="lrow">
+      <label class="lf">반<select id="listenCls"></select></label>
+      <button class="btn ghost small" id="listenRefresh" type="button">새로고침</button>
+      <span class="lnames" id="listenNames"></span>
+      <button class="btn quiet small" id="listenEditNames" type="button">이름 고치기</button>
+    </div>
+    <div class="lsetup" id="listenSetup" hidden><span>구글 시트를 한 번 연결하면 학생 화면에 이름 고르기가 생기고, 누가 들었는지 여기서 볼 수 있어요.</span><button class="btn small" id="listenOpenSet" type="button">구글 시트 연결하기</button></div>
+    <div class="namesedit" id="namesEdit" hidden>
+      <p class="fh"><span id="namesFor"></span> 학생 이름 <span>한 줄에 한 명 · “강수현 Rachel”처럼 · 학생 화면에는 영어 이름만 나와요</span></p>
+      <textarea id="namesText" spellcheck="false" aria-label="학생 이름 (한 줄에 한 명)"></textarea>
+      <div class="errs" id="namesErr" role="alert" style="white-space:pre-line"></div>
+      <div class="actions"><button class="btn" id="namesSave" type="button">저장</button><button class="btn quiet" id="namesCancel" type="button">취소</button></div>
+    </div>
+    <div class="sumline" id="listenSum"></div>
+    <div id="listenTable"></div>
+    <div class="status" id="listenStatus" role="status"></div>
+    <div class="lfoot"><span>기록은 구글 시트를 연결한 때부터 선생님 구글 시트에 쌓여요. 시간은 학생이 마지막으로 들은 때예요.</span><a id="listenSheet" href="#" target="_blank" rel="noopener" hidden>구글 시트 열기 ↗</a></div>
+  </section>
 
   <section class="card" id="draftCard" aria-labelledby="sd" hidden>
     <h2 id="sd"><span class="n">★</span> 준비해 둔 단어장 <span class="hint">발음까지 다 만들어 둔 단어장이에요 · 학생에게는 아직 안 보여요</span></h2>
@@ -292,6 +347,28 @@ a { color: var(--accent); }
       </div>
       <div class="status" id="tokenStatus" role="status"></div>
     </section>
+    <section id="listenSetBox">
+      <h3>듣기 기록 — 구글 시트 연결 (처음 한 번)</h3>
+      <p class="note">학생이 단어를 끝까지 들으면 선생님 구글 시트에 기록되고, 앱 맨 위 ‘누가 들었나요?’에서 볼 수 있어요. 기록은 선생님 구글 계정에만 저장되고 무료예요.</p>
+      <div class="status" id="listenSetStatus" role="status"></div>
+      <p class="note"><a id="listenSetSheet" href="#" target="_blank" rel="noopener" hidden>구글 시트 열기 ↗</a></p>
+      <ol class="steps">
+        <li><a href="https://sheets.new" target="_blank" rel="noopener">새 구글 시트 만들기</a> (선생님 구글 계정으로 로그인) → 왼쪽 위 제목을 <b>들어Voca 듣기 기록</b>으로</li>
+        <li>시트 메뉴 <b>확장 프로그램 → Apps Script</b></li>
+        <li>아래 <b>스크립트 복사</b>를 누르고, Apps Script 화면에 있던 글자를 모두 지운 뒤 붙여 넣기 → <b>저장</b>(디스크 모양)</li>
+        <li>오른쪽 위 <b>배포 → 새 배포</b> → 유형 선택(톱니바퀴)에서 <b>웹 앱</b> → 실행할 사용자: <b>나</b>, 액세스 권한이 있는 사용자: <b>모든 사용자</b> → <b>배포</b></li>
+        <li><b>액세스 승인</b> → 선생님 계정 고르기 → ‘확인되지 않은 앱’ 안내가 나오면 <b>고급 → (안전하지 않음)으로 이동 → 허용</b> (선생님이 직접 만든 스크립트라서 나오는 안내예요)</li>
+        <li>나온 <b>웹 앱 URL</b>(https://script.google.com/macros/s/…/exec)을 복사해 아래에 붙여 넣고 <b>연결하고 저장</b></li>
+      </ol>
+      <div class="inline"><button class="btn ghost" id="copyScript" type="button">스크립트 복사</button><span class="note" id="copyNote" role="status"></span></div>
+      <textarea id="scriptBox" readonly hidden aria-label="구글 시트에 붙여 넣을 스크립트"></textarea>
+      <div class="inline" style="margin-top:10px">
+        <input id="webappUrl" type="url" autocomplete="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec" aria-label="웹 앱 URL" style="flex:1 1 320px">
+        <button class="btn" id="connectListen" type="button">연결하고 저장</button>
+      </div>
+      <div class="status" id="listenConnStatus" role="status"></div>
+      <p class="note"><button class="btn quiet small" id="disconnectListen" type="button" hidden>학생 페이지에서 기록 끄기</button></p>
+    </section>
     <section>
       <h3>반 목록</h3>
       <ul class="classes" id="classList"></ul>
@@ -307,6 +384,6 @@ a { color: var(--accent); }
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=22"></script>
+<script type="module" src="app/app.js?v=23"></script>
 </body>
 </html>

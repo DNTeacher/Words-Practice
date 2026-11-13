@@ -151,6 +151,36 @@ footer { margin-top: 18px; color: var(--ink-soft); font-size: 13px; text-align: 
 a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 .err { color: var(--ink); background: var(--chip); border-radius: 10px; padding: 10px 12px; font-size: 14px; margin-top: 12px; }
 
+/* 누가 들었나요? (2026-11-13): 반에 학생 이름이 있으면 처음에 이름을 고르고, 끝까지 들은 단어에 ✓ */
+.me { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: 14px 16px; margin: 0 0 18px; display: grid; gap: 10px; }
+.me .mtop { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.me .nm { font-family: var(--f-word); font-weight: 700; font-size: 20px; overflow-wrap: anywhere; }
+.me .swap { flex: none; border: 0; background: transparent; color: var(--accent); font: 700 14px/1 var(--f-ko); padding: 10px 4px; margin: -6px 0; cursor: pointer; }
+.me .mbar { height: 10px; border-radius: 5px; background: var(--rule); overflow: hidden; }
+.me .mbar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 5px; transition: width .3s; }
+.me .mtext { margin: 0; font-size: 14px; color: var(--ink-soft); word-break: keep-all; overflow-wrap: anywhere; }
+.me .mtext b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.me.full { box-shadow: inset 0 0 0 2px var(--accent), var(--shadow); }
+.me .doneline { margin: 0; font-size: 16px; font-weight: 700; display: flex; gap: 8px; align-items: center; word-break: keep-all; }
+.me .ck { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 15px; }
+.num { flex-direction: column; }
+.row.heard .num::after { content: "✓"; display: block; margin-top: 4px; font-size: 15px; font-weight: 700; color: var(--accent); }
+.gtitle .gh { color: var(--accent); font-weight: 700; }
+.dim { position: fixed; inset: 0; z-index: 20; background: rgba(21, 33, 59, .45); }
+.pick { position: fixed; left: 0; right: 0; bottom: 0; z-index: 21; max-height: 88vh; overflow-y: auto; background: var(--sheet); color: var(--ink);
+  border-radius: 22px 22px 0 0; padding: 22px max(18px, env(safe-area-inset-right, 0px)) calc(18px + env(safe-area-inset-bottom, 0px)) max(18px, env(safe-area-inset-left, 0px));
+  box-shadow: 0 -12px 40px -12px rgba(21, 33, 59, .35); }
+.pick:focus { outline: none; }
+.pick .pin { max-width: 560px; margin: 0 auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
+.pick h2 { margin: 0; font-size: 22px; }
+.pick p { margin: 0; color: var(--ink-soft); font-size: 15px; word-break: keep-all; }
+.pick .names { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(130px, 100%), 1fr)); gap: 10px; margin-top: 4px; }
+.pick .names button { min-height: 60px; padding: 8px 10px; border-radius: 14px; border: 1.5px solid var(--rule); background: var(--paper); color: var(--ink); font: 700 22px/1.2 var(--f-word); cursor: pointer; overflow-wrap: anywhere; }
+.pick .names button:active { border-color: var(--accent); }
+.pick .small { font-size: 13px; }
+.pick .skip { justify-self: start; border: 0; background: transparent; color: var(--ink-soft); font: 500 14px/1 var(--f-ko); text-decoration: underline; padding: 10px 0; cursor: pointer; }
+.pick button:focus-visible, .me button:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
 @media (prefers-reduced-motion: reduce) {
   .w { transition: none; }
   .row.playing .spk .wv1, .row.playing .spk .wv2 { animation: none; opacity: 1; }
@@ -174,6 +204,7 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
     </div>
   </header>
 
+  <div class="me" id="me" hidden aria-live="polite"></div>
   <div class="lists" id="lists"></div>
   <p class="err" id="err" hidden>소리를 재생하지 못했어요. 휴대폰 소리 크기를 확인하고 다시 눌러 주세요.</p>
 
@@ -185,6 +216,14 @@ a:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
 
   <footer>소리가 작으면 휴대폰 소리 크기를 올려 주세요.</footer>
 </div>
+<div class="dim" id="pickDim" hidden></div>
+<div class="pick" id="pick" role="dialog" aria-modal="true" aria-labelledby="pickTitle" tabindex="-1" hidden><div class="pin">
+  <h2 id="pickTitle">누가 듣나요?</h2>
+  <p>내 이름을 눌러 주세요. 이 휴대폰이 기억해서 다음부터는 바로 시작해요.</p>
+  <div class="names" id="pickNames"></div>
+  <p class="small">어떤 단어를 끝까지 들었는지 선생님께 전해져요.</p>
+  <button class="skip" id="pickSkip" type="button">내 이름이 없어요</button>
+</div></div>
 
 <script>
 const DATA = /*__WORDBOOK_DATA__*/null;
@@ -263,7 +302,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   player.preload = "auto";
   let current = -1, queue = null, gapTimer = null;
 
-  const rows = [];
+  const rows = [], rowList = [], rowIdx = [], labels = [], gcEls = [];
   groups.forEach((g, gi) => {
     const ol = document.createElement("ol");
     ol.className = "sheet";
@@ -276,6 +315,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
       h2.querySelector(".gn").textContent = gi + 1;
       h2.querySelector(".gt").textContent = g.title || "단어장";
       h2.querySelector(".gc").textContent = "단어 " + g.words.length + "개";
+      gcEls[gi] = h2.querySelector(".gc");
       sec.appendChild(h2); sec.appendChild(ol); listsEl.appendChild(sec);
     } else listsEl.appendChild(ol);
     g.words.forEach((w, wi) => {
@@ -283,7 +323,8 @@ const DATA = /*__WORDBOOK_DATA__*/null;
       const li = document.createElement("li");
       const btn = document.createElement("button");
       btn.type = "button"; btn.className = "row"; btn.id = "word-" + (i + 1);
-      btn.setAttribute("aria-label", w.w + ", " + w.m + ", 발음 듣기");
+      labels.push(w.w + ", " + w.m + ", 발음 듣기");
+      btn.setAttribute("aria-label", labels[labels.length - 1]);
       btn.innerHTML =
         '<span class="num" aria-hidden="true"></span>' +
         '<span class="txt"><span class="w" lang="en"></span><span class="m"></span></span>' +
@@ -295,7 +336,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
       btn.querySelector(".m").textContent = w.m;
       btn.addEventListener("click", () => { stopQueue(); play(i); });
       li.appendChild(btn); ol.appendChild(li);
-      rows.push(btn);
+      rows.push(btn); rowList.push(gi); rowIdx.push(wi);
     });
   });
 
@@ -312,6 +353,7 @@ const DATA = /*__WORDBOOK_DATA__*/null;
   }
 
   player.addEventListener("ended", () => {
+    heardWord(current);
     mark(current, false);
     if (queue !== null) {
       const next = current + 1;
@@ -341,6 +383,176 @@ const DATA = /*__WORDBOOK_DATA__*/null;
     rows[0].scrollIntoView({ block: "nearest" });
     play(0);
   });
+  // ---------- 누가 들었나요? (2026-11-13) ----------
+  // 같은 폴더의 listen.json = { url: 선생님 구글 시트(Apps Script 웹 앱), classes: { 반코드: [영어 이름…] } }
+  // 이 반에 이름이 있을 때만 켜진다. 끝까지 재생된 단어만 '들음'. 이름과 들은 번호는 이 휴대폰에 기억하고 구글 시트로 보낸다.
+  const meEl = document.getElementById("me"), pickEl = document.getElementById("pick"), dimEl = document.getElementById("pickDim");
+  const wrapEl = document.querySelector(".wrap");
+  const code = V.cls_code || "";
+  const fileName = decodeURIComponent(location.pathname.split("/").pop() || "");
+  const datedFile = new RegExp("^" + code + "-\\d{4}-\\d{2}-\\d{2}(?:-\\d+)?\\.html$");
+  const listIds = groups.map(g => g.href || (datedFile.test(fileName) ? fileName : (V.date ? code + "-" + V.date + ".html" : "")));
+  const T = { on: false, url: "", names: [], name: null, heard: [], sent: [], dirty: [], busy: [], fail: [], timer: null, retry: null };
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+  };
+  const kName = "dv-name:" + code;
+  const kHeard = li => "dv-heard:" + code + ":" + T.name + ":" + listIds[li];
+  const kSent = li => "dv-sent:" + code + ":" + T.name + ":" + listIds[li];
+  const idsOf = s => String(s || "").split(",").filter(x => x.trim() !== "").map(Number).filter(n => Number.isInteger(n) && n >= 0);
+
+  function loadMine() {
+    T.heard = groups.map((g, li) => new Set(T.name ? idsOf(store.get(kHeard(li))).filter(n => n < g.words.length) : []));
+    T.sent = groups.map((g, li) => (T.name ? +store.get(kSent(li)) || 0 : 0));
+    T.dirty = groups.map((g, li) => T.heard[li].size > T.sent[li]);
+    T.fail = groups.map(() => false);
+  }
+
+  function heardWord(i) {
+    if (!T.on || !T.name || i < 0 || i >= rows.length) return;
+    const li = rowList[i], set = T.heard[li];
+    if (set.has(rowIdx[i])) return;
+    set.add(rowIdx[i]);
+    store.set(kHeard(li), [...set].join(","));
+    T.dirty[li] = true;
+    render();
+    clearTimeout(T.timer);
+    T.timer = setTimeout(flush, set.size >= groups[li].words.length ? 0 : 1500);
+  }
+
+  function params(li) {
+    const g = groups[li];
+    return { a: "log", cls: code, name: T.name, list: listIds[li], title: g.title || V.title || "", date: V.date || "", total: String(g.words.length), heard: [...T.heard[li]].sort((a, b) => a - b).join(",") };
+  }
+  function flush() {
+    if (!T.on || !T.name) return;
+    groups.forEach((g, li) => {
+      if (!T.dirty[li] || T.busy[li] || !listIds[li] || !T.heard[li].size) return;
+      T.dirty[li] = false; T.busy[li] = true;
+      const p = params(li), n = T.heard[li].size, who = T.name;
+      jsonp(T.url, p).then(r => {
+        if (!r || !r.ok) throw new Error("not ok");
+        if (who === T.name) { T.sent[li] = Math.max(T.sent[li], n); store.set(kSent(li), String(T.sent[li])); T.fail[li] = false; }
+      }).catch(() => {
+        if (who === T.name) { T.dirty[li] = true; T.fail[li] = true; }
+        clearTimeout(T.retry); T.retry = setTimeout(flush, 30000);
+      }).then(() => { T.busy[li] = false; if (T.dirty[li] && !T.fail[li]) flush(); render(); });
+    });
+    render();
+  }
+  // 페이지를 닫거나 다른 앱으로 갈 때 아직 못 보낸 기록을 한 번 더 보낸다
+  function beacon() {
+    if (!T.on || !T.name || !navigator.sendBeacon) return;
+    groups.forEach((g, li) => { if (T.dirty[li] && T.heard[li].size) { try { navigator.sendBeacon(T.url, JSON.stringify(params(li))); } catch (e) {} } });
+  }
+  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") beacon(); });
+  window.addEventListener("pagehide", beacon);
+  window.addEventListener("online", flush);
+
+  function jsonp(url, p, timeout) {
+    return new Promise((resolve, reject) => {
+      const cb = "__dv" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+      const s = document.createElement("script");
+      let done = false;
+      const fin = (err, d) => { if (done) return; done = true; clearTimeout(t); try { delete window[cb]; } catch (e) { window[cb] = undefined; } s.remove(); err ? reject(err) : resolve(d); };
+      const t = setTimeout(() => fin(new Error("timeout")), timeout || 20000);
+      window[cb] = d => fin(null, d);
+      s.onerror = () => fin(new Error("network"));
+      p = Object.assign({}, p, { cb: cb });
+      s.src = url + "?" + Object.keys(p).map(k => encodeURIComponent(k) + "=" + encodeURIComponent(p[k])).join("&");
+      document.head.appendChild(s);
+    });
+  }
+
+  function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+  function render() {
+    if (!T.on) { meEl.hidden = true; return; }
+    rows.forEach((r, i) => {
+      const h = !!(T.name && T.heard[rowList[i]] && T.heard[rowList[i]].has(rowIdx[i]));
+      r.classList.toggle("heard", h);
+      r.setAttribute("aria-label", labels[i] + (h ? ", 들음" : ""));
+    });
+    if (multi) groups.forEach((g, li) => {
+      const gc = gcEls[li]; if (!gc) return;
+      const n = T.name ? T.heard[li].size : 0, tot = g.words.length;
+      gc.textContent = "단어 " + tot + "개";
+      if (n) { const s = el("span", "gh", n >= tot ? " · ✓ 다 들음" : " · " + n + "개 들음"); gc.appendChild(s); }
+    });
+    meEl.hidden = false;
+    meEl.textContent = "";
+    meEl.classList.remove("full");
+    if (!T.name) {
+      const top = el("div", "mtop");
+      top.appendChild(el("p", "mtext", "이름을 고르면 들은 단어가 선생님께 전해져요."));
+      const b = el("button", "swap", "이름 고르기"); b.type = "button"; b.addEventListener("click", openPick);
+      top.appendChild(b); meEl.appendChild(top);
+      return;
+    }
+    const tot = groups.reduce((k, g) => k + g.words.length, 0);
+    const n = T.heard.reduce((k, s) => k + s.size, 0);
+    const allSent = groups.every((g, li) => T.sent[li] >= g.words.length);
+    const failed = T.fail.some(Boolean);
+    const top = el("div", "mtop");
+    top.appendChild(el("span", "nm", T.name));
+    const b = el("button", "swap", "이름 바꾸기"); b.type = "button"; b.addEventListener("click", openPick);
+    top.appendChild(b); meEl.appendChild(top);
+    const bar = el("div", "mbar"); const fill = el("i"); fill.style.width = (tot ? Math.round(n / tot * 100) : 0) + "%"; bar.appendChild(fill);
+    bar.setAttribute("role", "progressbar"); bar.setAttribute("aria-label", "들은 단어"); bar.setAttribute("aria-valuemin", "0"); bar.setAttribute("aria-valuemax", String(tot)); bar.setAttribute("aria-valuenow", String(n));
+    meEl.appendChild(bar);
+    if (tot && n >= tot) {
+      meEl.classList.add("full");
+      const d = el("p", "doneline"); d.appendChild(el("span", "ck", "✓"));
+      d.appendChild(document.createTextNode(n + "개 다 들었어요! " + (allSent ? "선생님께 전해졌어요." : failed ? "아직 선생님께 못 보냈어요. 인터넷이 연결되면 다시 보낼게요." : "선생님께 보내는 중이에요…")));
+      d.querySelector(".ck").setAttribute("aria-hidden", "true");
+      meEl.appendChild(d);
+    } else {
+      const p = el("p", "mtext"); p.appendChild(document.createTextNode("들은 단어 ")); p.appendChild(el("b", "", String(n)));
+      p.appendChild(document.createTextNode(" / " + tot + (failed ? " · 기록을 아직 못 보냈어요. 인터넷이 연결되면 다시 보낼게요." : " · 끝까지 들은 단어에 ✓ 표시가 생겨요")));
+      meEl.appendChild(p);
+    }
+  }
+
+  let lastFocus = null;
+  function openPick() {
+    stopQueue(); player.pause(); if (current >= 0) mark(current, false);
+    const box = document.getElementById("pickNames"); box.textContent = "";
+    T.names.forEach(nm => {
+      const b = el("button", "", nm); b.type = "button"; b.setAttribute("lang", "en");
+      b.addEventListener("click", () => choose(nm));
+      box.appendChild(b);
+    });
+    lastFocus = document.activeElement;
+    pickEl.hidden = false; dimEl.hidden = false; wrapEl.inert = true; wrapEl.setAttribute("aria-hidden", "true");
+    pickEl.focus();  // 첫 이름에 테두리가 생기면 이미 골라진 것처럼 보여서, 창 자체에 둔다 (Tab 으로 이름으로 이동)
+  }
+  function closePick() {
+    pickEl.hidden = true; dimEl.hidden = true; wrapEl.inert = false; wrapEl.removeAttribute("aria-hidden");
+    if (lastFocus && lastFocus.focus && document.contains(lastFocus)) lastFocus.focus();
+  }
+  function choose(nm) {
+    beacon();
+    T.name = nm; store.set(kName, nm);
+    loadMine(); closePick(); render(); flush();
+  }
+  document.getElementById("pickSkip").addEventListener("click", () => { T.name = null; loadMine(); closePick(); render(); });
+  pickEl.addEventListener("keydown", e => { if (e.key === "Escape") document.getElementById("pickSkip").click(); });
+
+  if (/^https?:$/.test(location.protocol) && code && allWords.length) {
+    fetch("listen.json?t=" + Math.floor(Date.now() / 300000), { cache: "no-store" })
+      .then(r => (r.ok ? r.json() : null))
+      .then(j => {
+        const names = j && j.classes && Array.isArray(j.classes[code]) ? j.classes[code].filter(x => typeof x === "string" && x) : [];
+        const url = j && typeof j.url === "string" ? j.url : "";
+        if (!names.length || !/^https:\/\/script\.google\.com\/macros\/s\/[A-Za-z0-9_-]+\/exec$/.test(url)) return;
+        T.on = true; T.url = url; T.names = names;
+        const saved = store.get(kName);
+        T.name = names.indexOf(saved) >= 0 ? saved : null;
+        loadMine(); render();
+        if (T.name) flush(); else openPick();
+      })
+      .catch(() => {});
+  }
 })();
 </script>
 </body>

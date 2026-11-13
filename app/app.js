@@ -1,9 +1,10 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=22";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=22";
-import { displayIpa } from "./g2p.js?v=22";
-import * as A from "./audio.js?v=22";
-import { Books, resolveRange, rangeHint } from "./books.js?v=22";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=23";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=23";
+import { displayIpa } from "./g2p.js?v=23";
+import * as A from "./audio.js?v=23";
+import { Books, resolveRange, rangeHint } from "./books.js?v=23";
+import { setupListen } from "./listen-ui.js?v=23";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -34,6 +35,8 @@ let editing = null; // { code, href, date, title } "지난 단어장 고치기"�
 let books = null, bookIdx = null, bookIdxErr = null, lastRangeTitle = null, importedPos = new Map();
 // 준비해 둔 단어장 (Words-Books/drafts): drafts = 목록, draftEditing = "고치기"로 불러온 준비 단어장 { id, title }
 let drafts = [], draftEditing = null;
+// 누가 들었나요? (listen-ui.js)
+let listenUI = null;
 const dayLabel = date => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date || ""); return m ? `${+m[2]}월 ${+m[3]}일` : date; };
 
 // ---------- 시작 ----------
@@ -45,6 +48,8 @@ async function init() {
   $("tokenBanner").hidden = !!gh;
 
   await loadClasses();
+  listenUI = setupListen({ $, h, store, pages, getGh: () => gh, getClasses: () => classes, dayLabel, isFuture, openSettings });
+  listenUI.start().catch(e => console.error(e));
   loadBookIndex();
   loadDrafts();
   restoreDraft();
@@ -56,7 +61,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=22");
+    await engine.loadDict("app/dict-us.json?v=23");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -104,6 +109,7 @@ async function loadClasses() {
   sel.replaceChildren(...classes.map(c => h("option", { value: c.code }, c.name)));
   if (prev && classes.some(c => c.code === prev)) sel.value = prev;
   renderClassList();
+  if (listenUI) listenUI.refreshClasses();
 }
 const curClass = () => classes.find(c => c.code === $("cls").value);
 
@@ -931,10 +937,12 @@ $("saveToken").addEventListener("click", async () => {
   loadBookIndex(); loadDrafts();
   st.textContent = "연결됐어요. 이제 올리기를 할 수 있어요."; st.className = "status ok";
   loadClasses(); onClassChange();
+  if (listenUI) listenUI.start().catch(e => console.error(e));
 });
 $("clearToken").addEventListener("click", () => {
   gh = null; books = null; bookIdx = null; store.set(LS.token, null); $("tokenBanner").hidden = false;
   renderBookBox(); renderClassList(); drafts = []; renderDrafts();
+  if (listenUI) listenUI.start().catch(e => console.error(e));
   $("tokenStatus").textContent = "이 브라우저에서 열쇠를 지웠어요."; $("tokenStatus").className = "status";
 });
 
