@@ -3,7 +3,7 @@
 // 선생님 앱이 그 기록을 열쇠(KEY)로 읽어 반별 표로 보여 준다.
 //
 // 파일 (반 이름·학생 이름)
-//   Words-Books/students.json  (비공개) { classes: { e3b: [{ ko: "황채원", en: "Luna" }, …] } }
+//   Words-Books/students.json  (비공개) { classes: { e3b: [{ ko: "홍길동", en: "Tom" }, …] } }
 //   Words-Books/listen.json    (비공개) { url, key, saved }   ← 기록을 읽는 열쇠는 여기에만
 //   Words-Practice/listen.json (공개)   { url, classes: { e3b: ["Leo", "Sun", "Luna"] } }  ← 학생 페이지가 읽음, 영어 이름만
 // 기록이 쌓이는 곳: 선생님 구글 시트의 '듣기 기록' 탭 (반·학생·단어장마다 한 줄)
@@ -129,7 +129,7 @@ export function jsonp(url, params, timeout = 20000) {
 }
 
 // ---------- 학생 이름 ----------
-// 한 줄에 한 명: "강수현 Rachel", "강수현Rachel", "Rachel 강수현", "Rachel" (영어 이름은 꼭 있어야 해요: 학생 화면에는 영어 이름만 나와요)
+// 한 줄에 한 명: "홍길동 Tom", "홍길동Tom", "Tom 홍길동", "Rachel" (영어 이름은 꼭 있어야 해요: 학생 화면에는 영어 이름만 나와요)
 export function parseNames(text) {
   const out = [], errs = [], seen = new Set();
   String(text || "").split(/\r?\n/).forEach((line, i) => {
