@@ -13,7 +13,7 @@
 <style>
 /* Layout: 선생님 작업대. 위에서 아래로 반·날짜 → 단어 붙여넣기 → 단어별 확인표, 아래에 고정된 올리기 막대. 학생 페이지와 같은 종이·남색 잉크·형광펜. */
 :root {
-  --paper: #EEF2F8; --sheet: #FFFFFF; --ink: #15213B; --ink-soft: #56637F; --rule: #DDE4EF;
+  --paper: #EEF2F8; --sheet: #FFFFFF; --ink: #15213B; --ink-soft: #4A5672; --rule: #DDE4EF; --line: #C3CEDF;
   --accent: #2A55D3; --accent-ink: #FFFFFF; --marker: #FFE14D; --chip: #FFF4C2;
   --ok: #1F7A4D; --ok-bg: #E3F4EA; --warn: #9A5B00; --warn-bg: #FFF1D6; --bad: #B3261E; --bad-bg: #FCE8E6;
   --shadow: 0 1px 0 rgba(21,33,59,.04), 0 8px 24px -12px rgba(21,33,59,.18);
@@ -21,7 +21,7 @@
   --f-ko: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", system-ui, sans-serif;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #9CA8C2; --rule: #263049;
+  :root { --paper: #0E1422; --sheet: #161E30; --ink: #EDF1F9; --ink-soft: #A9B4CC; --rule: #263049; --line: #3A4766;
     --accent: #8EAEFF; --accent-ink: #0E1422; --marker: rgba(255,214,64,.34); --chip: #3A3418;
     --ok: #7BD3A3; --ok-bg: #173527; --warn: #F2C26B; --warn-bg: #3A2E14; --bad: #FF9C94; --bad-bg: #3D1C1A;
     --shadow: 0 8px 24px -12px rgba(0,0,0,.6); color-scheme: dark; }
@@ -54,11 +54,11 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 .card { background: var(--sheet); border-radius: 16px; box-shadow: var(--shadow); padding: 18px 20px; margin-bottom: 14px; }
 .card h2 { margin: 0 0 12px; font-size: 16px; display: flex; align-items: baseline; gap: 4px 8px; flex-wrap: wrap; }
 .card h2 .n { color: var(--accent); font-variant-numeric: tabular-nums; }
-.card h2 .hint { font-size: 13px; font-weight: 400; color: var(--ink-soft); }
+.card h2 .hint { font-size: 14px; font-weight: 400; color: var(--ink-soft); }
 .row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(200px, 2fr); gap: 12px; }
 @media (max-width: 720px) { .row { grid-template-columns: 1fr; } }
 label.f { display: grid; gap: 4px; font-size: 13px; font-weight: 500; color: var(--ink-soft); }
-label.f input, label.f select { border: 1px solid var(--rule); background: var(--paper); border-radius: 10px; padding: 9px 12px; font-size: 15px; color: var(--ink); }
+label.f input, label.f select { border: 1px solid var(--line); background: var(--sheet); border-radius: 10px; padding: 9px 12px; font-size: 15px; color: var(--ink); min-width: 0; }
 .frombook { margin-top: 14px; padding: 14px 16px; border-radius: 12px; background: var(--paper); }
 .frombook .fh { font-size: 14px; font-weight: 700; margin: 0 0 10px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
 .frombook .fh span { font-weight: 400; color: var(--ink-soft); font-size: 13px; }
@@ -76,9 +76,18 @@ label.f input, label.f select { border: 1px solid var(--rule); background: var(-
 textarea#words { tab-size: 150px; }
 .classes li .book { grid-column: 1 / -1; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); padding-bottom: 4px; }
 .classes li .book select { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 4px 8px; font-size: 13px; color: var(--ink); max-width: 100%; }
-.loadprev { margin-top: 10px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--ink-soft); }
-.loadprev select { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 5px 8px; font-size: 13px; }
-textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px solid var(--rule); background: var(--paper); border-radius: 12px; padding: 12px 14px; font: 16px/1.6 var(--f-ko); }
+.loadprev { margin-top: 10px; padding: 12px 16px; border-radius: 12px; background: var(--paper); }
+.loadprev .lpin { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.loadprev select { border: 1px solid var(--line); background: var(--sheet); border-radius: 8px; padding: 6px 8px; font-size: 14px; color: var(--ink); min-width: 0; max-width: 100%; }
+/* 접었다 펴는 칸 (2026-11-14): 제목 줄을 누르면 열리고 닫혀요. 앞의 ▸ / ▾ 가 지금 상태 */
+details > summary { cursor: pointer; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+details > summary::before { content: "▸"; display: inline-block; width: 1em; flex: none; color: var(--accent); font-size: .9em; }
+details[open] > summary::before { content: "▾"; }
+details > summary:hover { color: var(--accent); }
+.frombook > summary.fh, .loadprev > summary.fh { margin: 0; }
+.frombook[open] > summary.fh { margin-bottom: 10px; }
+textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px solid var(--line); background: var(--sheet); border-radius: 12px; padding: 12px 14px; font: 16px/1.6 var(--f-ko); }
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 12px; flex-wrap: wrap; }
 .errs { margin: 10px 0 0; padding: 10px 14px; border-radius: 10px; background: var(--bad-bg); color: var(--bad); font-size: 14px; }
 .errs:empty { display: none; }
@@ -114,7 +123,7 @@ textarea#words { width: 100%; min-height: 190px; resize: vertical; border: 1px s
 .chip.bad { background: var(--bad-bg); color: var(--bad); }
 .chip.info { background: var(--chip); color: var(--ink); }
 .chip.wait { background: var(--rule); color: var(--ink-soft); font-weight: 500; }
-.note { font-size: 13px; color: var(--ink-soft); margin-top: 4px; }
+.note { font-size: 14px; color: var(--ink-soft); margin-top: 4px; }
 .note b { color: var(--ink); }
 .play { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .play button { border: 1px solid var(--rule); background: var(--paper); border-radius: 8px; padding: 6px 10px; font-size: 13px; cursor: pointer; white-space: nowrap; }
@@ -206,6 +215,13 @@ table.who thead th:first-child { border-radius: 10px 0 0 10px; min-width: 0; }
 table.who thead th:last-child { border-radius: 0 10px 10px 0; }
 table.who thead th small, table.who td small, table.who th.nm small { display: block; font-weight: 400; color: var(--ink-soft); font-size: 12px; margin-top: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 table.who thead th.cur { box-shadow: inset 0 -3px 0 var(--accent); }
+table.who thead th small.now { color: var(--accent); font-weight: 700; }
+/* 가장 최근 숙제 (2026-11-14): 어떤 숙제인지는 표 위에 한 번만 */
+.latest { display: grid; gap: 2px; margin: 0 0 10px; padding: 10px 12px; border-radius: 10px; background: var(--paper); box-shadow: inset 3px 0 0 var(--accent); }
+.latest b { font-size: 16px; overflow-wrap: anywhere; }
+.latest span { font-size: 13px; color: var(--ink-soft); }
+table.who.now1 thead th { min-width: 0; }
+table.who td.tm { color: var(--ink-soft); font-variant-numeric: tabular-nums; white-space: nowrap; }
 table.who th.nm { white-space: nowrap; }
 table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 16px; }
 .st { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 10px; font-weight: 700; font-size: 13px; white-space: nowrap; }
@@ -220,6 +236,86 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
 .lfoot { display: flex; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; margin-top: 10px; font-size: 13px; color: var(--ink-soft); word-break: keep-all; }
 .lfoot a, #listenSetSheet { color: var(--accent); font-weight: 700; }
 #scriptBox { width: 100%; min-height: 120px; margin-top: 8px; font: 12px/1.4 ui-monospace, monospace; }
+
+/* 준비해 둔 단어장: 접으면 한 줄 요약 (2026-11-14) */
+#draftCard { padding-block: 12px; }
+#draftCard h2 { margin: 0; align-items: center; }
+#draftFold > summary { display: flex; align-items: center; gap: 4px; }
+#draftFold[open] > summary { margin-bottom: 6px; }
+.peek { display: inline-flex; gap: 6px; flex-wrap: wrap; font-size: 13px; font-weight: 500; }
+.peek span { background: var(--paper); border-radius: 8px; padding: 1px 8px; color: var(--ink); }
+#draftFold[open] .peek { display: none; }
+.foldnote { margin: 0 0 4px; font-size: 14px; color: var(--ink-soft); }
+#resultEmpty { display: none; }
+.emptynote { margin: 0; padding: 18px; border-radius: 12px; background: var(--paper); color: var(--ink-soft); font-size: 15px; }
+
+/* 넓은 화면 (노트북·모니터): 페이지 전체는 스크롤하지 않고 한 화면에 (2026-11-14)
+   왼쪽 = 누가 들었나요? (늘 펼침) · 가운데 = 1 반과 날짜, 2 단어와 뜻 · 오른쪽 = 3 듣고 확인하기
+   칸마다 내용이 길면 그 칸 안에서만 스크롤. 좁은 화면은 위의 예전 배치 그대로. */
+@media (min-width: 1100px) and (min-height: 600px) {
+  html, body { height: 100%; }
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  .wrap { flex: 1; min-height: 0; width: 100%; max-width: 1760px; padding: 0 24px; display: flex; flex-direction: column; }
+  header.top { padding-block: 12px 10px; }
+  header.top .sub { display: none; }
+  .banner { margin-bottom: 12px; }
+  .shell { flex: 1; min-height: 0; display: grid; grid-template-columns: clamp(300px, 25vw, 400px) minmax(0, 1fr); gap: 14px; padding-bottom: 14px; }
+  .shell:has(#listenCard[hidden]) { grid-template-columns: minmax(0, 1fr); }
+  .shell:has(#listenCard[hidden]) > .side { display: none; }
+  .side, .col { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; border-radius: 16px; }
+  .side > .card { margin: 0; min-height: 100%; }
+  .work { min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .work > #draftCard { margin: 0; flex: none; }
+  #draftFold[open] #draftList { max-height: 30vh; overflow-y: auto; }
+  .cols { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 14px; }
+  .col { container-type: inline-size; }
+  .col > .card:last-child { margin-bottom: 0; }
+  .check:not(:has(> #resultCard:not([hidden]))) > #resultEmpty { display: block; }
+  .dock { position: static; flex: none; }
+  .dock .in { max-width: 1760px; padding: 10px 24px; flex-wrap: nowrap; }
+  .dock .sched { flex-basis: auto; flex-wrap: nowrap; white-space: nowrap; }
+  .dock .sum { margin-left: auto; white-space: nowrap; }
+}
+@media (min-width: 1100px) and (max-width: 1279px) and (min-height: 600px) {
+  .dock .in { flex-wrap: wrap; }
+  .dock .sched { flex-basis: 100%; }
+}
+
+/* 누가 들었나요? 를 왼쪽 좁은 칸에 맞게 */
+@media (min-width: 1100px) and (min-height: 600px) {
+  .side #listenCard h2 .hint { flex-basis: 100%; font-size: 13px; }
+  .side .lrow { margin-bottom: 10px; }
+  .side .lrow .lf { flex: 1 1 100%; }
+  .side .lrow .lf select { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--sheet); border-radius: 8px; padding: 6px 8px; font-size: 14px; }
+  .side .lrow .lnames { order: 5; flex-basis: 100%; margin-left: 0; font-size: 13px; }
+  .side .lrow .lnames:not(:has(b)) { color: var(--warn); }
+  .side .sumline .sl { font-size: 13px; }
+  .side table.who { font-size: 13px; }
+  .side table.who th, .side table.who td { padding: 8px 6px; }
+  .side table.who thead th { min-width: 0; font-size: 12.5px; line-height: 1.35; }
+  .side table.who thead th small { white-space: normal; }
+  .side table.who th.nm span { font-size: 15px; }
+  .side .st { font-size: 12px; padding: 2px 8px; }
+  .side .lfoot { flex-direction: column; font-size: 12.5px; }
+}
+
+/* 칸이 좁을 때 (넓은 화면의 가운데·오른쪽 칸) */
+@container (max-width: 560px) {
+  .row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .row > label:last-child { grid-column: 1 / -1; }
+  .frow { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .frow > .btn { grid-column: 1 / -1; justify-self: start; }
+}
+@container (max-width: 900px) {
+  .item { grid-template-columns: 28px minmax(0, 1fr) auto; gap: 4px 12px; padding: 10px 0; align-items: center; }
+  .item .no { padding-top: 0; }
+  .item .view { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+  .item .edit { margin: 0; }
+  .item .pron { grid-column: 2 / -1; grid-row: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+  .item .pron > .chips { margin-top: 0; }
+  .item .pron > .note, .item .pron > .picker, .item .pron > .choices, .item .pron > .note + .chips { flex-basis: 100%; }
+  .item .play { grid-column: 3; grid-row: 1; }
+}
 </style>
 </head>
 <body>
@@ -240,6 +336,8 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
     <button class="btn small" id="bannerSettings" type="button">열쇠 넣기</button>
   </div>
 
+  <div class="shell">
+  <aside class="side">
   <section class="card" id="listenCard" aria-labelledby="sl" hidden>
     <h2 id="sl"><span class="n">✓</span> 누가 들었나요? <span class="hint">학생이 단어를 끝까지 들으면 기록돼요 · 1~2분 늦게 보일 수 있어요</span></h2>
     <div class="lrow">
@@ -260,13 +358,20 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
     <div class="status" id="listenStatus" role="status"></div>
     <div class="lfoot"><span>기록은 구글 시트를 연결한 때부터 선생님 구글 시트에 쌓여요. 시간은 학생이 마지막으로 들은 때예요.</span><a id="listenSheet" href="#" target="_blank" rel="noopener" hidden>구글 시트 열기 ↗</a></div>
   </section>
+  </aside>
 
+  <div class="work">
   <section class="card" id="draftCard" aria-labelledby="sd" hidden>
-    <h2 id="sd"><span class="n">★</span> 준비해 둔 단어장 <span class="hint">발음까지 다 만들어 둔 단어장이에요 · 학생에게는 아직 안 보여요</span></h2>
-    <ul class="drafts" id="draftList"></ul>
+    <details class="fold" id="draftFold">
+      <summary><h2 id="sd"><span class="n">★</span> 준비해 둔 단어장 <span class="pill2" id="draftCount"></span> <span class="peek" id="draftPeek"></span></h2></summary>
+      <p class="foldnote">발음까지 다 만들어 둔 단어장이에요. 학생에게는 아직 안 보여요.</p>
+      <ul class="drafts" id="draftList"></ul>
+    </details>
     <div class="status" id="draftStatus" role="status"></div>
   </section>
 
+  <div class="cols">
+  <div class="col make">
   <section class="card" aria-labelledby="s1">
     <h2 id="s1"><span class="n">1</span> 반과 날짜</h2>
     <div class="row">
@@ -274,8 +379,8 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
       <label class="f">숙제 날짜<input id="date" type="date"></label>
       <label class="f">다음 시험<input id="title" type="text" placeholder="예: Day 8, unit.5, 4회 21~30번"></label>
     </div>
-    <div class="frombook" id="bookBox" hidden>
-      <p class="fh">단어장에서 가져오기 <span>범위를 적으면 아래 2번 칸에 단어와 뜻이 들어가요</span></p>
+    <details class="frombook" id="bookBox" open hidden>
+      <summary class="fh">단어장에서 가져오기 <span>범위를 적으면 아래 2번 칸에 단어와 뜻이 들어가요</span></summary>
       <div class="frow" id="bookRow" hidden>
         <label class="f">단어장<select id="bookSel"></select></label>
         <label class="f">시험 범위<input id="rangeIn" type="text" autocomplete="off" spellcheck="false" placeholder="예: Day 8"></label>
@@ -283,14 +388,16 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
       </div>
       <div class="fhint" id="bookHint"></div>
       <div class="fmsg" id="bookMsg" role="status" hidden></div>
-    </div>
-    <div class="loadprev" id="prevBox" hidden>
-      <span>지난 단어장 고치기:</span>
-      <select id="prevSel" aria-label="불러올 지난 단어장"></select>
-      <button class="btn ghost small" id="prevLoad" type="button">불러오기</button>
-      <button class="btn quiet small" id="prevDel" type="button">지우기</button>
-      <button class="btn quiet small" id="prevNow" type="button" hidden>지금 바로 보이기</button>
-    </div>
+    </details>
+    <details class="loadprev" id="prevBox" hidden>
+      <summary class="fh">지난 단어장 고치기 <span>올린 단어장을 불러와 고치거나 지워요</span></summary>
+      <div class="lpin">
+        <select id="prevSel" aria-label="불러올 지난 단어장"></select>
+        <button class="btn ghost small" id="prevLoad" type="button">불러오기</button>
+        <button class="btn quiet small" id="prevDel" type="button">지우기</button>
+        <button class="btn quiet small" id="prevNow" type="button" hidden>지금 바로 보이기</button>
+      </div>
+    </details>
     <div class="delask" id="delAsk" role="status" hidden></div>
     <div class="editbar" id="editBar" hidden></div>
   </section>
@@ -304,14 +411,25 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
       <span class="note" id="makeNote">AI가 준비되면 누를 수 있어요.</span>
     </div>
   </section>
+  </div>
+
+  <div class="col check">
+  <section class="card done" id="doneCard" hidden aria-live="polite"></section>
+
+  <section class="card" id="resultEmpty" aria-hidden="true">
+    <h2><span class="n">3</span> 듣고 확인하기</h2>
+    <p class="emptynote">왼쪽 2번 칸에 단어를 넣고 <b>발음 만들기</b>를 누르면 여기에 단어가 하나씩 나와요.</p>
+  </section>
 
   <section class="card" aria-labelledby="s3" id="resultCard" hidden>
     <h2 id="s3"><span class="n">3</span> 듣고 확인하기 <span class="hint">노란 표시가 있는 단어만 살펴보면 돼요</span></h2>
     <div class="progress" id="prog" hidden><span id="progText"></span><span class="bar"><i id="progBar"></i></span></div>
     <ol class="list" id="list"></ol>
   </section>
-
-  <section class="card done" id="doneCard" hidden aria-live="polite"></section>
+  </div>
+  </div>
+  </div>
+  </div>
 </div>
 
 <div class="dock" id="dock" hidden>
@@ -384,6 +502,6 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=23"></script>
+<script type="module" src="app/app.js?v=24"></script>
 </body>
 </html>

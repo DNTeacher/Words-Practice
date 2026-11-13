@@ -1,5 +1,5 @@
 // 선생님 앱: '누가 들었나요?' 칸 + 학생 이름 고치기 + 설정의 구글 시트 연결 (2026-11-13)
-import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=23";
+import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=24";
 
 const PENDING_KEY = "wp-listen-key-pending";
 
@@ -57,8 +57,10 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
     try {
       const gh = getGh();
       const [html, rows] = await Promise.all([gh.getText(`${c.code}.html`), L.read(c.code)]);
-      entries = pages.entriesOf(c, html).filter(e => !isFuture(e.showFrom))
-        .sort((a, b) => b.date.localeCompare(a.date) || b.href.localeCompare(a.href)).slice(0, 3);
+      // 가장 최근 숙제 날짜의 단어장만 (같은 날 여러 개면 모두, 학생 화면에 나오는 순서대로) (2026-11-14)
+      const shown = pages.entriesOf(c, html).filter(e => !isFuture(e.showFrom));
+      const last = shown.reduce((m, e) => (e.date > m ? e.date : m), "");
+      entries = shown.filter(e => e.date === last);
       recs = rows;
     } catch (e) {
       if (my === seq) status($("listenStatus"), (e.message || String(e)) + " · 잠시 뒤 ‘새로고침’을 눌러 주세요.", false);
@@ -68,22 +70,33 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
     status($("listenStatus"), "");
     if (!entries.length) { $("listenTable").append(h("p", { class: "lempty" }, "이 반에 올린 단어장이 아직 없어요.")); return; }
     const by = new Map(recs.map(r => [`${r.name}|${r.list}`, r]));
-    const latest = entries[0].date;
+    const latest = entries[0].date, one = entries.length === 1;
     const since = ((L.cfg && L.cfg.saved) || "").slice(0, 10);  // 연결한 날: 그 전 단어장의 빈 칸은 '기록 전'
-    const cell = (s, e) => {
+    // 숙제 상태 칸 (+ 단어장이 여러 개면 그 아래 작게 마지막으로 들은 때)
+    const badge = (s, e) => {
       const st = cellState(by.get(`${s.en}|${e.href}`));
-      if (st.kind === "none") return e.date !== latest && since && e.date < since
-        ? h("td", {}, h("span", { class: "st pre", title: "구글 시트를 연결하기 전 단어장이에요" }, "· 기록 전"))
-        : h("td", {}, h("span", { class: "st none" }, "– 안 들음"));
-      const t = short(st.last);
-      return st.kind === "ok"
-        ? h("td", {}, h("span", { class: "st ok" }, "✓ 다 들음"), h("small", {}, `${st.heard}/${st.total}${t ? " · " + t : ""}`))
-        : h("td", {}, h("span", { class: "st part" }, `◐ ${st.heard}/${st.total}`), h("small", {}, t));
+      if (st.kind === "none") return { st, el: since && e.date < since
+        ? h("span", { class: "st pre", title: "구글 시트를 연결하기 전 단어장이에요" }, "· 기록 전")
+        : h("span", { class: "st none" }, "– 안 들음") };
+      return { st, el: st.kind === "ok"
+        ? h("span", { class: "st ok", title: `${st.heard}/${st.total} 단어` }, "✓ 다 들음")
+        : h("span", { class: "st part" }, `◐ ${st.heard}/${st.total}`) };
     };
-    $("listenTable").append(h("div", { class: "lscroll" }, h("table", { class: "who" },
-      h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "학생"), ...entries.map(e =>
-        h("th", { scope: "col", class: e.date === latest ? "cur" : null }, e.title, h("small", {}, `${dayLabel(e.date)} 숙제` + (e.date === latest ? " · 지금 보이는 단어장" : "")))))),
-      h("tbody", {}, ...names.map(s => h("tr", {}, h("th", { scope: "row", class: "nm" }, h("span", { lang: "en" }, s.en), s.ko ? h("small", {}, s.ko) : null), ...entries.map(e => cell(s, e))))))));
+    const nameCell = s => h("th", { scope: "row", class: "nm" }, h("span", { lang: "en" }, s.en), s.ko ? h("small", {}, s.ko) : null);
+    // 위: 어떤 숙제인지 한 번만
+    $("listenTable").append(h("div", { class: "latest" },
+      h("b", {}, one ? entries[0].title : `${dayLabel(latest)} 숙제 ${entries.length}개`),
+      h("span", {}, one
+        ? `${dayLabel(latest)} 숙제 · 지금 보이는 단어장 · ${entries[0].n}단어`
+        : `${entries.map(e => `${e.title} (${e.n}단어)`).join(", ")} · 지금 보이는 단어장`)));
+    // 아래: 학생마다 숙제 상태
+    $("listenTable").append(h("div", { class: "lscroll" }, h("table", { class: "who now1" },
+      h("thead", {}, h("tr", {}, h("th", { scope: "col" }, "학생"),
+        ...(one ? [h("th", { scope: "col" }, "숙제 상태"), h("th", { scope: "col" }, "마지막으로 들은 때")]
+                : entries.map(e => h("th", { scope: "col" }, e.title))))),
+      h("tbody", {}, ...names.map(s => h("tr", {}, nameCell(s), ...(one
+        ? (({ st, el }) => [h("td", {}, el), h("td", { class: "tm" }, st.kind === "none" ? "–" : short(st.last))])(badge(s, entries[0]))
+        : entries.map(e => { const { st, el } = badge(s, e); return h("td", {}, el, st.kind !== "none" && st.last ? h("small", {}, short(st.last)) : null); }))))))));
     // 지금 보이는 단어장(들) 요약
     for (const e of entries.filter(x => x.date === latest)) {
       const sts = names.map(s => ({ s, k: cellState(by.get(`${s.en}|${e.href}`)).kind }));
