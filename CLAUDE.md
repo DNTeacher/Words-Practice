@@ -23,7 +23,7 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 - 학생 페이지 틀의 원본은 `tools/template.html` → 저장소 폴더에서 `python3 tools/export_app_templates.py .` 로 `app/student.html`, `app/list-page.html` 생성 (`app/student.html`을 직접 고치지 말고 `tools/template.html`을 고친 뒤 내보내기). `tools/make_site.py`는 같은 틀을 쓰는 Python 판(예전 방식·비교용).
 
 **꼭 지킬 것**
-1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=24**. (GitHub Pages 캐시 10분 때문)
+1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=25**. (GitHub Pages 캐시 10분 때문)
 2. 비밀은 공개 저장소·학생 페이지 코드에 넣지 않는다: 선생님 GitHub 토큰은 선생님 브라우저 localStorage(`wp-gh-token`)에만, 듣기 기록 KEY는 `Words-Books/listen.json`에만. 한글 학생 이름은 `Words-Books/students.json`에만, 공개 `listen.json`에는 영어 이름만.
 3. 날짜 칸 = **숙제 날짜**. 반 주소 맨 위는 가장 최근 숙제 날짜의 단어장. 같은 날짜+같은 제목(다음 시험 칸) = 바꾸기, 제목이 다르면 여러 개.
 4. 선생님이 준 단어장 내용(뜻 등)은 함부로 고치지 않는다. 영어 철자 오타만 고치고 단어장 JSON의 `fixes`에 기록, 선생님께 알린다.
@@ -50,6 +50,13 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 ---
 
 ## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-14)
+
+### v=25 (11-14) 열쇠가 없는 컴퓨터에서도 '누가 들었나요?' 칸이 보이게
+다른 노트북에서 칸이 통째로 사라져 보였음 (열쇠는 브라우저마다 따로 저장되는데, 열쇠가 없으면 `#listenCard`를 숨겼고 새 배치에서는 왼쪽 칸까지 사라짐).
+| 파일 | 바뀐 부분 |
+|---|---|
+| `teacher.html` | `#listenCard` 안에 `#listenNoKey`(안내 + '열쇠 넣기' 버튼 `#listenKeyBtn`), 나머지 내용은 `#listenBody`로 묶음 |
+| `app/listen-ui.js` | `start()`: 칸은 늘 보이고, 열쇠가 없으면 `#listenNoKey`만, 있으면 `#listenBody`만 |
 
 ### v=24 (11-14) 선생님 앱 한 화면 배치 (넓은 화면에서 페이지 스크롤 없음) + 글씨·칸 읽기 쉽게
 | 파일 | 바뀐 부분 |

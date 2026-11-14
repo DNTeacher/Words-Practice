@@ -340,6 +340,8 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
   <aside class="side">
   <section class="card" id="listenCard" aria-labelledby="sl" hidden>
     <h2 id="sl"><span class="n">✓</span> 누가 들었나요? <span class="hint">학생이 단어를 끝까지 들으면 기록돼요 · 1~2분 늦게 보일 수 있어요</span></h2>
+    <div class="lsetup" id="listenNoKey" hidden><span>이 컴퓨터에는 아직 GitHub 열쇠가 없어서 기록을 볼 수 없어요. 다른 컴퓨터에서 넣은 열쇠는 그 컴퓨터에만 저장돼요. 이 컴퓨터에서도 한 번 넣어 주세요.</span><button class="btn small" id="listenKeyBtn" type="button">열쇠 넣기</button></div>
+    <div id="listenBody">
     <div class="lrow">
       <label class="lf">반<select id="listenCls"></select></label>
       <button class="btn ghost small" id="listenRefresh" type="button">새로고침</button>
@@ -357,6 +359,7 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
     <div id="listenTable"></div>
     <div class="status" id="listenStatus" role="status"></div>
     <div class="lfoot"><span>기록은 구글 시트를 연결한 때부터 선생님 구글 시트에 쌓여요. 시간은 학생이 마지막으로 들은 때예요.</span><a id="listenSheet" href="#" target="_blank" rel="noopener" hidden>구글 시트 열기 ↗</a></div>
+    </div>
   </section>
   </aside>
 
@@ -502,6 +505,6 @@ table.who th.nm span { font-family: var(--f-word); font-weight: 700; font-size: 
   </div>
 </dialog>
 
-<script type="module" src="app/app.js?v=24"></script>
+<script type="module" src="app/app.js?v=25"></script>
 </body>
 </html>

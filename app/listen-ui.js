@@ -1,5 +1,5 @@
 // 선생님 앱: '누가 들었나요?' 칸 + 학생 이름 고치기 + 설정의 구글 시트 연결 (2026-11-13)
-import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=24";
+import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=25";
 
 const PENDING_KEY = "wp-listen-key-pending";
 
@@ -13,7 +13,10 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
   // ---------- 처음 불러오기 ----------
   async function start() {
     const gh = getGh();
-    card.hidden = !gh;
+    // 열쇠가 없는 컴퓨터에서도 칸은 보이게 하고 '열쇠 넣기' 안내 (2026-11-14: 다른 노트북에서 칸이 사라져 보였음)
+    card.hidden = false;
+    $("listenNoKey").hidden = !!gh;
+    $("listenBody").hidden = !gh;
     if (!gh) return;
     L = new Listen(gh);
     try { await L.load(); loadErr = null; } catch (e) { loadErr = e; }
@@ -137,6 +140,7 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
 
   $("listenCls").addEventListener("change", show);
   $("listenRefresh").addEventListener("click", async () => { if (L) { try { await L.load(); loadErr = null; } catch (e) { loadErr = e; } } renderSettings(); show(); });
+  $("listenKeyBtn").addEventListener("click", () => openSettings());
   $("listenOpenSet").addEventListener("click", () => { openSettings(); setTimeout(() => $("listenSetBox").scrollIntoView({ block: "start" }), 50); });
 
   // ---------- 설정: 구글 시트 연결 ----------
