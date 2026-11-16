@@ -1,10 +1,10 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=25";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=25";
-import { displayIpa } from "./g2p.js?v=25";
-import * as A from "./audio.js?v=25";
-import { Books, resolveRange, rangeHint } from "./books.js?v=25";
-import { setupListen } from "./listen-ui.js?v=25";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=26";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=26";
+import { displayIpa } from "./g2p.js?v=26";
+import * as A from "./audio.js?v=26";
+import { Books, resolveRange, rangeHint } from "./books.js?v=26";
+import { setupListen } from "./listen-ui.js?v=26";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -46,6 +46,18 @@ for (const id of ["draftFold", "bookBox", "prevBox"]) {
   if (v === "1" || v === "0") d.open = v === "1";
   d.addEventListener("toggle", () => store.set(k, d.open ? "1" : "0"));
 }
+// 설정의 '휴대폰으로 보기' QR (who.html, 2026-11-16)
+function drawWhoQr() {
+  const box = $("whoQr"); if (!box || !window.qrcode) return;
+  const qr = window.qrcode(0, "M"); qr.addData(SITE + "who.html"); qr.make();
+  const n = qr.getModuleCount(), quiet = 2, css = 120, dpr = Math.max(2, Math.ceil(window.devicePixelRatio || 1));
+  const cv = h("canvas", { width: css * dpr, height: css * dpr, role: "img", "aria-label": "휴대폰용 누가 들었나요? 주소 QR코드" });
+  const g = cv.getContext("2d"), cell = (css * dpr) / (n + 2 * quiet);
+  g.fillStyle = "#fff"; g.fillRect(0, 0, cv.width, cv.height); g.fillStyle = "#000";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) g.fillRect(Math.floor((c + quiet) * cell), Math.floor((r + quiet) * cell), Math.ceil(cell), Math.ceil(cell));
+  box.replaceChildren(cv);
+}
+drawWhoQr();
 init().catch(e => console.error(e));
 
 async function init() {
@@ -67,7 +79,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=25");
+    await engine.loadDict("app/dict-us.json?v=26");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");
@@ -966,7 +978,7 @@ function renderClassList() {
         h("button", { class: "btn quiet small", type: "button", onclick: editCode }, "주소 바꾸기"),
         h("button", { class: "btn quiet small", type: "button", onclick: () => saveQr(c) }, "QR 저장"),
         h("button", { class: "btn quiet small", type: "button", onclick: askRemove }, "목록에서 빼기")),
-      bookPicker(c));
+      bookPicker(c) || "");  // 열쇠가 없으면 단어장 고르기 없음 (null 을 그대로 넣으면 화면에 "null" 글자가 나왔음)
     const edit = () => {
       const inp = h("input", { type: "text", value: c.name, "aria-label": `${c.name} 새 이름` });
       li.replaceChildren(inp, h("code", {}, `${SITE}${c.code}.html`), h("span", { class: "acts" },

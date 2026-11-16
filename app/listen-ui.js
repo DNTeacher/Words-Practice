@@ -1,5 +1,5 @@
 // 선생님 앱: '누가 들었나요?' 칸 + 학생 이름 고치기 + 설정의 구글 시트 연결 (2026-11-13)
-import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState } from "./listen.js?v=25";
+import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState, latestSets, shortTime } from "./listen.js?v=26";
 
 const PENDING_KEY = "wp-listen-key-pending";
 
@@ -7,7 +7,7 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
   let L = null, loadErr = null, seq = 0;
   const card = $("listenCard");
   const cls = () => getClasses().find(c => c.code === $("listenCls").value);
-  const short = t => { const m = /^\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(t || ""); return m ? `${+m[1]}/${+m[2]} ${m[3]}` : (t || ""); };
+  const short = shortTime;
   const status = (el, msg, ok) => { el.textContent = msg || ""; el.className = "status" + (msg ? (ok === true ? " ok" : ok === false ? " bad" : "") : ""); };
 
   // ---------- 처음 불러오기 ----------
@@ -61,9 +61,7 @@ export function setupListen({ $, h, store, pages, getGh, getClasses, dayLabel, i
       const gh = getGh();
       const [html, rows] = await Promise.all([gh.getText(`${c.code}.html`), L.read(c.code)]);
       // 가장 최근 숙제 날짜의 단어장만 (같은 날 여러 개면 모두, 학생 화면에 나오는 순서대로) (2026-11-14)
-      const shown = pages.entriesOf(c, html).filter(e => !isFuture(e.showFrom));
-      const last = shown.reduce((m, e) => (e.date > m ? e.date : m), "");
-      entries = shown.filter(e => e.date === last);
+      entries = latestSets(pages.entriesOf(c, html));
       recs = rows;
     } catch (e) {
       if (my === seq) status($("listenStatus"), (e.message || String(e)) + " · 잠시 뒤 ‘새로고침’을 눌러 주세요.", false);
