@@ -18,5 +18,9 @@
   "jˈuθ": "period",
   "fˈɪnəʃ": "period-fast",
   "pˈɛpəɹ": "period",
-  "tˈʌb": "period-fast"
+  "tˈʌb": "period-fast",
+  "nˈO, nˈu, nˈOn": "period",
+  "lˈI, lˈA, lˈAn": "period",
+  "ɹˈʌn, ɹˈæn, ɹˈʌn": "comma",
+  "sˈɛnd, sˈɛnt, sˈɛnt": "excl"
 }
