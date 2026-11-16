@@ -23,7 +23,7 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 - 학생 페이지 틀의 원본은 `tools/template.html` → 저장소 폴더에서 `python3 tools/export_app_templates.py .` 로 `app/student.html`, `app/list-page.html` 생성 (`app/student.html`을 직접 고치지 말고 `tools/template.html`을 고친 뒤 내보내기). `tools/make_site.py`는 같은 틀을 쓰는 Python 판(예전 방식·비교용).
 
 **꼭 지킬 것**
-1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=24**. (GitHub Pages 캐시 10분 때문)
+1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=26** (who.html·app/who.js 의 꼬리표도 같이). (GitHub Pages 캐시 10분 때문)
 2. 비밀은 공개 저장소·학생 페이지 코드에 넣지 않는다: 선생님 GitHub 토큰은 선생님 브라우저 localStorage(`wp-gh-token`)에만, 듣기 기록 KEY는 `Words-Books/listen.json`에만. 한글 학생 이름은 `Words-Books/students.json`에만, 공개 `listen.json`에는 영어 이름만.
 3. 날짜 칸 = **숙제 날짜**. 반 주소 맨 위는 가장 최근 숙제 날짜의 단어장. 같은 날짜+같은 제목(다음 시험 칸) = 바꾸기, 제목이 다르면 여러 개.
 4. 선생님이 준 단어장 내용(뜻 등)은 함부로 고치지 않는다. 영어 철자 오타만 고치고 단어장 JSON의 `fixes`에 기록, 선생님께 알린다.
@@ -44,12 +44,29 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
   - **★ 준비해 둔 단어장** (v=16): 미리 만들어 둔 단어장 목록 → 미리 보기·고치기·올리기·지우기
   - **1 반과 날짜**: 반 / 숙제 날짜 / 다음 시험 (+ 단어장에서 가져오기: 범위 적기 → 단어·뜻 자동 입력)
   - **2 단어와 뜻** → 발음 만들기(브라우저 AI) → 단어마다 확인·다른 소리 고르기 → 올리기 / 예약 / 준비해 두기
-  - 설정: GitHub 열쇠, **듣기 기록 — 구글 시트 연결**(v=23), 반 목록(추가·이름 바꾸기·주소 바꾸기·빼기)
+  - 설정: GitHub 열쇠, **듣기 기록 — 구글 시트 연결**(v=23), **휴대폰으로 ‘누가 들었나요?’ 보기**(v=26, who.html QR), 반 목록(추가·이름 바꾸기·주소 바꾸기·빼기)
+- **휴대폰 페이지** `who.html` + `app/who.js` (v=26): '누가 들었나요?'만 보는 가벼운 페이지(발음 AI 안 불러옴). 아이폰 홈 화면에 '들어Voca'로 추가(`app/icons/who-*.png`, `who.webmanifest`). 열쇠는 같은 localStorage `wp-gh-token`이지만 아이폰 홈 화면 앱은 사파리와 저장 공간이 따로라 한 번 더 넣는다. 마지막에 본 반 `wp-who-cls`
 - **학생 페이지**: 단어를 누르면 발음, 모두 듣기. (v=23) 반에 이름이 있고 구글 시트가 연결돼 있으면 처음에 "누가 듣나요?"로 이름 고르기 → 끝까지 들은 단어에 ✓ → 기록이 선생님 구글 시트로.
 
 ---
 
-## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-14)
+## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-16)
+
+### v=26 (11-16) 휴대폰용 '누가 들었나요?' 페이지 (아이폰 홈 화면 '들어Voca')
+| 파일 | 바뀐 부분 |
+|---|---|
+| `who.html`, `app/who.js` (새) | 열쇠 넣기(처음 한 번, `GitHub.check()`로 확인) → 반 고르기 → 가장 최근 숙제(같은 날 여러 개면 모두) + 요약(단어장이 하나일 때) + 학생마다 한 줄(영어·한글 이름, 상태, 마지막으로 들은 때). 새로고침 버튼, 다시 열었을 때 1분 넘었으면 새로 불러옴, 열쇠가 틀리면(401) 열쇠 화면으로. 이름 고치기는 없음(컴퓨터 앱에서) |
+| `app/icons/who-180/192/512.png`, `who.webmanifest` (새) | 홈 화면 아이콘: 남색 바탕 + 흰 '들' + 노란 밑줄 + 초록 체크. 이름 '들어Voca' |
+| `app/listen.js` | `latestSets(entries)`(가장 최근 숙제 날짜의 단어장들, 예약 제외), `shortTime()` — 컴퓨터 앱과 휴대폰 페이지가 같이 씀 |
+| `app/listen-ui.js` | 위 두 함수를 씀 (동작은 같음) |
+| `teacher.html`, `app/app.js` | 설정에 `#whoSetBox`(아이폰 홈 화면 추가 순서 + who.html QR `drawWhoQr()`). 반 목록에서 열쇠가 없을 때 "null" 글자가 나오던 것 고침(`bookPicker(c) || ""`) |
+
+### v=25 (11-14) 열쇠가 없는 컴퓨터에서도 '누가 들었나요?' 칸이 보이게
+다른 노트북에서 칸이 통째로 사라져 보였음 (열쇠는 브라우저마다 따로 저장되는데, 열쇠가 없으면 `#listenCard`를 숨겼고 새 배치에서는 왼쪽 칸까지 사라짐).
+| 파일 | 바뀐 부분 |
+|---|---|
+| `teacher.html` | `#listenCard` 안에 `#listenNoKey`(안내 + '열쇠 넣기' 버튼 `#listenKeyBtn`), 나머지 내용은 `#listenBody`로 묶음 |
+| `app/listen-ui.js` | `start()`: 칸은 늘 보이고, 열쇠가 없으면 `#listenNoKey`만, 있으면 `#listenBody`만 |
 
 ### v=24 (11-14) 선생님 앱 한 화면 배치 (넓은 화면에서 페이지 스크롤 없음) + 글씨·칸 읽기 쉽게
 | 파일 | 바뀐 부분 |

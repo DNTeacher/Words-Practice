@@ -207,3 +207,13 @@ export function cellState(rec) {
   if (!rec || !rec.heard) return { kind: "none" };
   return { kind: rec.heard >= rec.total ? "ok" : "part", heard: rec.heard, total: rec.total, last: rec.last };
 }
+
+// 가장 최근 숙제 날짜의 단어장들 (예약해서 아직 안 보이는 것 제외, 같은 날 여러 개면 모두, 학생 화면 순서)
+// 선생님 앱 '누가 들었나요?'와 휴대폰 페이지(who.html)가 같이 쓴다 (2026-11-16)
+export function latestSets(entries, now = Date.now()) {
+  const shown = (entries || []).filter(e => !(e.showFrom && Date.parse(e.showFrom) > now));
+  const last = shown.reduce((m, e) => (e.date > m ? e.date : m), "");
+  return shown.filter(e => e.date === last);
+}
+// 시트의 "2026-11-13 21:00:05" → "11/13 21:00"
+export const shortTime = t => { const m = /^\d{4}-(\d{2})-(\d{2})[ T](\d{2}:\d{2})/.exec(t || ""); return m ? `${+m[1]}/${+m[2]} ${m[3]}` : (t || ""); };
