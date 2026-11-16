@@ -2,8 +2,8 @@
 // 단어마다 음성을 만들고, 음성인식으로 다시 받아적어 같은 소리인지 확인한다.
 // 무거운 AI 계산은 worker.js(따로 도는 일꾼)에서 한다 → 화면이 멈추지 않는다 (2026-10-30, 크롬 '페이지 응답 없음' 해결).
 
-import { Lexicon, guessVariant, espeakToKokoro, soundKey, speakable } from "./g2p.js?v=26";
-import * as A from "./audio.js?v=26";
+import { Lexicon, guessVariant, espeakToKokoro, soundKey, speakable, formParts } from "./g2p.js?v=27";
+import * as A from "./audio.js?v=27";
 
 const PHONEMIZER = "https://cdn.jsdelivr.net/npm/phonemizer@1.2.1/+esm";
 export const VOICE = "af_heart";
@@ -21,6 +21,7 @@ export const VARIANTS = [
   { id: "period-slow", suffix: ".", speed: 0.9 },
   { id: "period-fast", suffix: ".", speed: 1.1 },
 ];
+const FORM_GAP = 0.45;  // 동사 변화 형태 사이 쉬는 시간(초)
 const AUTO_TRY = ["period", "excl", "comma"];
 const variantById = id => VARIANTS.find(v => v.id === id) || VARIANTS[0];
 
@@ -62,7 +63,7 @@ export class Engine {
 
   // AI 모델 불러오기 (일꾼 안에서). onProgress(0~1, 설명)
   async loadModels(onProgress = () => {}) {
-    this.worker = new Worker(new URL("./worker.js?v=26", import.meta.url), { type: "module" });
+    this.worker = new Worker(new URL("./worker.js?v=27", import.meta.url), { type: "module" });
     this.worker.onmessage = e => {
       const d = e.data;
       if (d.type === "progress") return onProgress(d.p, d.txt);
@@ -103,6 +104,9 @@ export class Engine {
   // 입력 한 줄 → 단어 항목 (발음 결정)
   async prepare(item) {
     const say = speakable(item.word);  // "How about ~ing ?" 같은 표기는 기호를 빼고 읽는다
+    // 동사 변화 "begin – began – begun": 형태마다 쉬어 읽고 과거형·과거분사 발음으로 (2026-11-16)
+    const f = this.lex.forms(say);
+    if (f && f.ps) { item.variants = null; item.ps = f.ps; item.source = "dict"; return item; }
     item.variants = this.lex.variants(say);
     if (item.variants) {
       if (item.choice == null) { item.choice = guessVariant(item.variants, item.meaning, item.pos); item.guessed = true; }
@@ -121,18 +125,53 @@ export class Engine {
   }
 
   // 같은 소리로 들렸는지
-  heardOk(item, heard) {
-    const t = tokens(heard);
-    if (!t.length) return false;
-    if (t.join(" ") === plain(speakable(item.word))) return true;
-    const parts = t.map(w => this.lex.word(w));
-    if (parts.some(p => p == null)) return false;
-    return soundKey(parts.join("")) === soundKey(item.ps);
+  heardOk(item, heard) { return sameSound(this.lex, speakable(item.word), item.ps, heard); }
+
+  // 동사 변화 줄의 형태들 [{ text, ps }] (모양이 아니면 null). 순서는 g2p forms() 와 같다.
+  formChecks(item) {
+    const parts = formParts(speakable(item.word));
+    if (!parts || !item.ps) return null;
+    const texts = parts.flatMap(p => p.split(/\s*[,/]\s*/).filter(x => /[A-Za-z]/.test(x)));
+    const pss = item.ps.split(/,\s+/);
+    return pss.length > 1 && texts.length === pss.length ? texts.map((text, i) => ({ text, ps: pss[i] })) : null;
+  }
+
+  // 동사 변화 줄은 형태마다 따로 받아 적어 확인 (한꺼번에 받아 적으면 음성인식이 "dream dream dream…"처럼 헛돈다, 2026-11-16 시험)
+  async _verifyForms(it, fs) {
+    const check = async base => {
+      const hs = []; let ok = true;
+      for (let i = 0; i < fs.length; i++) {
+        const h = await this.transcribe(A.finish(base.clips[i]));
+        hs.push(h || "…");
+        if (!sameSound(this.lex, fs[i].text, fs[i].ps, h)) ok = false;
+      }
+      return { ok, heard: hs.join(" / ") };
+    };
+    let r = await check(it.base);
+    if (!r.ok && !it.variant) {
+      for (const vid of AUTO_TRY) {
+        if (vid === it.variantUsed) continue;
+        const base = await this.variantAudio(it.ps, vid);
+        const r2 = await check(base);
+        if (r2.ok) { it.base = base; it.audio.normal = A.finish(base); it.variantUsed = vid; it.autoFixed = true; r = r2; break; }
+      }
+    }
+    return r;
   }
 
   // 읽기 방법 하나로 소리 만들기
   async variantAudio(ps, vid) {
     const v = variantById(vid);
+    // 동사 변화 "begin, began, begun" (g2p forms): 쉼표만으로는 거의 안 쉬고 이어 읽어서 (begin began begun → "Bring Brat Brat"처럼 들림)
+    // 형태마다 따로 만들고 사이를 FORM_GAP 만큼 띄운다 (2026-11-16)
+    const parts = ps.split(/,\s+/);
+    if (parts.length > 1) {
+      const clips = [];
+      for (const p of parts) clips.push(A.trimAndPad(await this.synth(p + v.suffix, v.speed), { lead: 0, tail: 0 }));
+      const joined = A.concatWithGaps(clips, FORM_GAP);
+      joined.clips = clips;  // 형태마다 따로 확인할 때 쓴다 (_verifyForms)
+      return joined;
+    }
     return this.synth(ps + v.suffix, v.speed);
   }
 
@@ -156,6 +195,7 @@ export class Engine {
     const groups = [];
     let cur = [], dur = 0;
     for (const it of items) {
+      if (key === "normal" && it.base && it.base.clips && this.formChecks(it)) continue;  // 동사 변화 줄은 아래에서 따로
       const d = it.audio[key].length / A.SR + 0.8;
       if (cur.length && (cur.length >= 8 || dur + d > 24)) { groups.push(cur); cur = []; dur = 0; }
       cur.push(it); dur += d;
@@ -170,6 +210,8 @@ export class Engine {
     const t = Object.fromEntries(SPEEDS)[key];
     for (const it of items) {
       if (it.check[key]) continue;
+      const fs = key === "normal" && it.base && it.base.clips ? this.formChecks(it) : null;
+      if (fs) { it.check[key] = await this._verifyForms(it, fs); onStep(); continue; }
       let heard = await this.transcribe(it.audio[key]);
       let ok = this.heardOk(it, heard) || (key !== "normal" && it.check.normal?.heard && plain(heard) === plain(it.check.normal.heard));
       // 보통 빠르기가 다르게 들리면 다른 읽기 방법을 자동으로 시도 (선생님이 직접 고른 소리는 그대로 둔다)
@@ -217,6 +259,16 @@ export class Engine {
     }
     return matched;
   }
+}
+
+// 받아 적은 글자가 그 단어(구)와 같은 소리인지: 글자가 같거나, 받아 적은 낱말들의 사전 발음이 같으면 (lead = led 의 '납', 8 = ate)
+export function sameSound(lex, text, ps, heard) {
+  const t = tokens(heard || "");
+  if (!t.length) return false;
+  if (t.join(" ") === plain(text)) return true;
+  const parts = t.map(w => lex.word(w));
+  if (parts.some(p => p == null)) return false;
+  return soundKey(parts.join("")) === soundKey(ps);
 }
 
 export { plain };
