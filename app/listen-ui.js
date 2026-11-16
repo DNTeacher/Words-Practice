@@ -1,5 +1,5 @@
 // 선생님 앱: '누가 들었나요?' 칸 + 학생 이름 고치기 + 설정의 구글 시트 연결 (2026-11-13)
-import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState, latestSets, shortTime } from "./listen.js?v=26";
+import { Listen, appsScript, newKey, isWebAppUrl, cleanUrl, parseNames, formatNames, cellState, latestSets, shortTime } from "./listen.js?v=27";
 
 const PENDING_KEY = "wp-listen-key-pending";
 

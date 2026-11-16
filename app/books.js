@@ -78,6 +78,11 @@ const prefixOf = book => { const m = /^([^\d]*?)\s*\d/.exec(book.sections[0] ? b
 // "있는 범위" 와 적는 예
 export function rangeHint(book) {
   const s = book.sections; if (!s.length) return { have: "", examples: [] };
+  // Unit·Day 같은 구역이 없는 단어장 (불규칙 동사표처럼 번호만 있는 표): "1~10번"
+  if (!secKey(s[0].name)) {
+    const nos = s.flatMap(x => x.items.map(i => i.no)).filter(n => typeof n === "number");
+    return { have: nos.length ? `${Math.min(...nos)}~${Math.max(...nos)}번` : "", examples: ["1~10번", "11~20번"] };
+  }
   const have = `${shortName(s[0].name)} ~ ${shortName(s[s.length - 1].name)}`;
   const k = secKey(s[0].name), ex = s[Math.min(4, s.length - 1)], ek = secKey(ex.name);
   const label = ek ? (["회", "쪽"].includes(ek[0]) ? `${ek[1]}${ek[0]}` : `${prefixOf(book) || ek[0]} ${ek[1]}`) : shortName(ex.name);
@@ -115,6 +120,17 @@ export function resolveRange(book, q) {
         if (!its.length) return { error: `${shortName(s.name)}에는 ${lo === hi ? lo : `${lo}~${hi}`}번이 없어요. 단어가 ${s.items.length}개 있어요.` };
       }
       for (const i of its) found.push({ from: s.name, no: i.no, word: i.w, meaning: i.m, pos: i.pos || [] });
+    }
+  }
+  // 번호만 적은 범위 "1~10번", "1-10", "5번" → 단어장 전체에서 그 번호 (2026-11-16, 불규칙 동사표)
+  if (!found.length) {
+    const n = /^(\d+)\s*(?:~\s*(\d+))?\s*번?$/.exec(q0);
+    if (n) {
+      let lo = +n[1], hi = +(n[2] || n[1]); if (hi < lo) [lo, hi] = [hi, lo];
+      for (const s of book.sections) for (const i of s.items)
+        if (typeof i.no === "number" && i.no >= lo && i.no <= hi) found.push({ from: s.name, no: i.no, word: i.w, meaning: i.m, pos: i.pos || [] });
+      if (!found.length) return { error: `이 단어장에는 ${lo === hi ? lo : `${lo}~${hi}`}번이 없어요. 있는 범위: ${rangeHint(book).have}` };
+      if (found.length > 60) return { error: `한 번에 60개까지 만들 수 있어요. 범위를 줄여 주세요 (지금 ${found.length}개).` };
     }
   }
   if (!found.length) {

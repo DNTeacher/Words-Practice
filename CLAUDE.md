@@ -23,7 +23,7 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 - 학생 페이지 틀의 원본은 `tools/template.html` → 저장소 폴더에서 `python3 tools/export_app_templates.py .` 로 `app/student.html`, `app/list-page.html` 생성 (`app/student.html`을 직접 고치지 말고 `tools/template.html`을 고친 뒤 내보내기). `tools/make_site.py`는 같은 틀을 쓰는 Python 판(예전 방식·비교용).
 
 **꼭 지킬 것**
-1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=26** (who.html·app/who.js 의 꼬리표도 같이). (GitHub Pages 캐시 10분 때문)
+1. `app/` 파일이나 `teacher.html`을 고치면 버전 꼬리표 `?v=N`을 **전부** 하나 올린다 (teacher.html, app/*.js 의 import, dict 주소, engine.js 의 worker.js 주소). 현재 **v=27** (who.html·app/who.js 의 꼬리표도 같이). (GitHub Pages 캐시 10분 때문)
 2. 비밀은 공개 저장소·학생 페이지 코드에 넣지 않는다: 선생님 GitHub 토큰은 선생님 브라우저 localStorage(`wp-gh-token`)에만, 듣기 기록 KEY는 `Words-Books/listen.json`에만. 한글 학생 이름은 `Words-Books/students.json`에만, 공개 `listen.json`에는 영어 이름만.
 3. 날짜 칸 = **숙제 날짜**. 반 주소 맨 위는 가장 최근 숙제 날짜의 단어장. 같은 날짜+같은 제목(다음 시험 칸) = 바꾸기, 제목이 다르면 여러 개.
 4. 선생님이 준 단어장 내용(뜻 등)은 함부로 고치지 않는다. 영어 철자 오타만 고치고 단어장 JSON의 `fixes`에 기록, 선생님께 알린다.
@@ -51,6 +51,17 @@ GitHub Pages에 반별 학생 페이지로 올린다. 학생은 카톡으로 받
 ---
 
 ## 2. 바뀐 내용 (최근 → 예전, 2026-11-09 ~ 11-16)
+
+### v=27 (11-16) 동사 변화 한 줄 "begin – began – begun" 발음 + 번호만 적는 범위 (불규칙 동사표, 초4-도하)
+선생님이 준 불규칙 동사표(.docx, 82개)를 `Words-Books/books/irregular-verbs.json`으로 넣고 e4b 에 연결 (단어 칸 = '원형 – 과거형 – 과거분사형').
+| 파일 | 바뀐 부분 |
+|---|---|
+| `app/g2p.js` | `formParts(text)`: 띄어 쓴 줄표(- – —)로 나뉜 영어 2~3칸이면 칸 목록. `Lexicon.forms(text)`: 칸마다 발음, 둘째 칸 VBD·셋째 칸 VBN (read → ɹˈid, ɹˈɛd, ɹˈɛd), 한 칸에 두 가지("was, were", "dreamed/dreamt")면 둘 다, 낱말 하나면 강세 살림(was wʌz → wˈʌz), 형태 사이는 ", ". `soundKey`가 쉼표를 뺀다 |
+| `app/engine.js` | `prepare()`: forms 면 그 발음. `variantAudio()`: 발음에 ", " 가 있으면 형태마다 따로 만들고 `FORM_GAP`(0.45초) 띄워 이음 (쉼표만으로는 거의 안 쉬어 "Bring Brat Brat"처럼 들렸음), `.clips`에 형태별 소리. `verify()`: 동사 변화 줄은 묶음 받아쓰기에서 빼고 `_verifyForms()`로 형태마다 받아 적어 모두 같은 소리면 ✓, 아니면 다른 읽기(마침표·느낌표·쉼표)를 줄 전체에 자동 시도. `sameSound()`로 소리 비교를 함수로 뺌 |
+| `app/books.js` | Unit·Day 같은 구역이 없는 단어장은 번호만 적는 범위: "1~10번", "1-10", "5번" (60개 넘으면 안내). `rangeHint`도 "1~82번" |
+
+시험 (클라우드, Python Kokoro kokoro-v1.0.onnx af_heart + sherpa-onnx Whisper base.en): 82줄 모두 사전 발음 있음. 형태마다 받아 적기 203/252 같은 소리, 줄 전체 ✓ 53/82 → 다른 읽기 자동 시도 뒤 60/82. 나머지 22줄은 '직접 들어 보세요'(대부분 짧은 낱말을 음성인식이 B·C·8·But 처럼 적는 것; drank·grew·kept·took·taught 은 소리를 들어 볼 것). 선생님 앱 가져오기(e4b, 1~10번)는 가짜 GitHub로 확인.
+주의: e4b 는 이제 단어장이 2개라 '다음 시험' 칸이 "Listening Season 1 - unit 3", "불규칙 동사 - 1~10번"처럼 단어장 짧은 이름이 붙는다 (v=20 규칙).
 
 ### v=26 (11-16) 휴대폰용 '누가 들었나요?' 페이지 (아이폰 홈 화면 '들어Voca')
 | 파일 | 바뀐 부분 |

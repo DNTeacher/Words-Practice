@@ -1,10 +1,10 @@
 // 단어장 만들기 화면
-import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=26";
-import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=26";
-import { displayIpa } from "./g2p.js?v=26";
-import * as A from "./audio.js?v=26";
-import { Books, resolveRange, rangeHint } from "./books.js?v=26";
-import { setupListen } from "./listen-ui.js?v=26";
+import { Engine, SPEEDS, VARIANTS, itemState, plain } from "./engine.js?v=27";
+import { Pages, GitHub, SITE, BRAND, readData, setsOf, wordCount, datedRe } from "./site.js?v=27";
+import { displayIpa } from "./g2p.js?v=27";
+import * as A from "./audio.js?v=27";
+import { Books, resolveRange, rangeHint } from "./books.js?v=27";
+import { setupListen } from "./listen-ui.js?v=27";
 
 const $ = id => document.getElementById(id);
 const SPEED_KO = { normal: "보통", slow: "천천히", very_slow: "아주 천천히" };
@@ -79,7 +79,7 @@ async function init() {
   loadFixes();
   setEngine("발음 사전 불러오는 중", 0.02);
   try {
-    await engine.loadDict("app/dict-us.json?v=26");
+    await engine.loadDict("app/dict-us.json?v=27");
     await engine.loadModels((p, txt) => setEngine(`AI 준비 중 · ${txt}`, 0.05 + 0.95 * p));
     engineReady = true;
     setEngine(engine.device === "webgpu" ? "AI 준비됨 (그래픽 가속)" : "AI 준비됨", 1, "ready");

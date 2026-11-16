@@ -140,6 +140,23 @@ export class Lexicon {
     return { ps: parts.join(" "), missing: [] };
   }
 
+  // 동사 변화 "begin – began – begun" (2026-11-16, 불규칙 동사표): 형태 사이를 쉼표로 쉬어 읽고,
+  // 둘째 칸은 과거형(VBD)·셋째 칸은 과거분사(VBN) 발음 (read – read – read → 리드, 레드, 레드).
+  // 한 칸에 두 가지면 ("was, were", "dreamed/dreamt") 둘 다 읽는다. 모양이 아니면 null.
+  forms(text) {
+    const parts = formParts(text);
+    if (!parts) return null;
+    const TAGS = [null, "VBD", "VBN"], out = [], missing = [];
+    parts.forEach((part, i) => {
+      for (const alt of part.split(/\s*[,/]\s*/).filter(x => /[A-Za-z]/.test(x))) {
+        const r = this.phrase(alt, TAGS[i] || null);
+        // 하나씩 따로 말하는 단어라 강세를 살린다 (was "wʌz" → "wˈʌz", been "bˌɪn" → "bˈɪn")
+        if (r.ps) out.push(/\s/.test(r.ps) ? r.ps : applyStress(r.ps, 2)); else missing.push(...r.missing);
+      }
+    });
+    return missing.length ? { ps: null, missing } : { ps: out.join(", "), missing: [] };
+  }
+
   // 뜻에 따라 발음이 달라지는 단어의 후보
   variants(text) {
     const toks = text.match(/[A-Za-z']+/g) || [];
@@ -240,7 +257,14 @@ export function espeakToKokoro(ipa) {
 
 // 음성인식 결과와 의도한 발음이 같은 소리인지 비교할 때 쓰는 정규화
 export function soundKey(ps) {
-  return ps.replace(/[ˈˌ\s]/g, "").replaceAll("ᵊ", "ə").replaceAll("ɾ", "t").replaceAll("ᵻ", "ɪ").replaceAll("ʔ", "t");
+  return ps.replace(/[ˈˌ\s,]/g, "").replaceAll("ᵊ", "ə").replaceAll("ɾ", "t").replaceAll("ᵻ", "ɪ").replaceAll("ʔ", "t");
+}
+
+// "begin – began – begun" 처럼 띄어 쓴 줄표(-, –, —)로 나뉜 영어 2~3칸이면 칸 목록, 아니면 null
+// (붙여 쓴 ice-cream, "How about ~ing ?" 같은 표기는 해당 없음)
+export function formParts(text) {
+  const p = String(text || "").split(/\s+[-–—]\s+/).map(x => x.trim()).filter(Boolean);
+  return p.length >= 2 && p.length <= 3 && p.every(x => /^[A-Za-z][A-Za-z' ,/]*$/.test(x)) ? p : null;
 }
 
 // 소리 낼 글자: 단어장 표기의 기호는 빼고 읽는다 (화면에는 적힌 그대로)

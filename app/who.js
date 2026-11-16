@@ -1,8 +1,8 @@
 // 휴대폰용 '누가 들었나요?' 페이지 (who.html, 2026-11-16)
 // 선생님이 아이폰 홈 화면에 '들어Voca'로 추가해서 기록만 보는 가벼운 페이지. 발음 AI는 불러오지 않는다.
 // 열쇠는 선생님 앱과 같은 localStorage 'wp-gh-token' (아이폰 홈 화면 앱은 사파리와 저장 공간이 따로라 한 번 더 넣는다).
-import { GitHub, Pages } from "./site.js?v=26";
-import { Listen, cellState, latestSets, shortTime } from "./listen.js?v=26";
+import { GitHub, Pages } from "./site.js?v=27";
+import { Listen, cellState, latestSets, shortTime } from "./listen.js?v=27";
 
 const $ = id => document.getElementById(id);
 const LS = { token: "wp-gh-token", cls: "wp-who-cls" };
